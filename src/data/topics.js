@@ -6,6 +6,7 @@ export const TOPICS = [
     id: 'cricket',
     name: 'Cricket',
     emoji: '🏏',
+    color: '#3ddc84', // neon green
     blurb: 'The game that stops the country.',
     subtopics: ['Indian Cricket', 'World Cups', 'IPL', 'Records'],
   },
@@ -13,6 +14,7 @@ export const TOPICS = [
     id: 'markets',
     name: 'Markets',
     emoji: '📈',
+    color: '#ffb020', // amber
     blurb: 'Money, mania, and how it all moves.',
     subtopics: ['Stock Market', 'Personal Finance', 'Scandals'],
   },
@@ -20,6 +22,7 @@ export const TOPICS = [
     id: 'bollywood',
     name: 'Bollywood',
     emoji: '🎬',
+    color: '#ff4d8d', // hot pink
     blurb: 'A century of song, spectacle and stars.',
     subtopics: ['Classics', 'Awards', 'Behind the Scenes'],
   },
@@ -27,6 +30,7 @@ export const TOPICS = [
     id: 'history',
     name: 'History',
     emoji: '🏛️',
+    color: '#43b7ff', // electric blue
     blurb: 'Where the subcontinent came from.',
     subtopics: ['Ancient India', 'Medieval India', 'Science & Math'],
   },
@@ -40,4 +44,8 @@ export function topicName(id) {
 
 export function topicEmoji(id) {
   return TOPIC_BY_ID[id]?.emoji ?? '•'
+}
+
+export function topicColor(id) {
+  return TOPIC_BY_ID[id]?.color ?? '#ff6a3d'
 }

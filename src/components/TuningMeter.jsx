@@ -11,6 +11,7 @@ export default function TuningMeter({ scores, swipeCount }) {
   const leadTopic = TOPICS.find((t) => t.id === lead)
 
   const sorted = [...TOPICS].sort((a, b) => (dist[b.id] ?? 0) - (dist[a.id] ?? 0))
+  const leadColor = leadTopic?.color ?? 'var(--accent)'
 
   return (
     <div className="tuning">
@@ -18,7 +19,7 @@ export default function TuningMeter({ scores, swipeCount }) {
         <span className="label">
           {swipeCount < 3 ? 'Your feed is learning…' : 'Your feed right now'}
         </span>
-        <span className="lead">
+        <span className="lead" style={{ color: leadColor }}>
           {leadTopic ? `${leadTopic.emoji} Leaning ${leadTopic.name}` : ''}
         </span>
       </div>
@@ -31,7 +32,10 @@ export default function TuningMeter({ scores, swipeCount }) {
                 {t.emoji} {t.name}
               </span>
               <span className="track">
-                <span className="fill" style={{ width: `${Math.round((dist[t.id] ?? 0) * 100)}%` }} />
+                <span
+                  className="fill"
+                  style={{ width: `${Math.round((dist[t.id] ?? 0) * 100)}%`, '--bar-c': t.color }}
+                />
               </span>
               <span className="pct">{Math.round((dist[t.id] ?? 0) * 100)}%</span>
             </div>

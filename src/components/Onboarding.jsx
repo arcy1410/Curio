@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { TOPICS } from '../data/topics.js'
+import { haptic } from '../lib/haptics.js'
 
 // For the prototype the topic list is small (4), so we let users pick any
 // number and just require at least 2. The pitch describes 10–15 interests
@@ -10,6 +11,7 @@ export default function Onboarding({ onDone }) {
   const [picked, setPicked] = useState(() => new Set())
 
   function toggle(id) {
+    haptic.select()
     setPicked((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)
@@ -40,6 +42,7 @@ export default function Onboarding({ onDone }) {
           <button
             key={t.id}
             className={`topic-card ${picked.has(t.id) ? 'on' : ''}`}
+            style={{ '--topic-c': t.color }}
             onClick={() => toggle(t.id)}
             aria-pressed={picked.has(t.id)}
           >
@@ -58,7 +61,14 @@ export default function Onboarding({ onDone }) {
       </div>
 
       <div className="cta-bar">
-        <button className="btn-primary" disabled={!enough} onClick={() => onDone([...picked])}>
+        <button
+          className="btn-primary"
+          disabled={!enough}
+          onClick={() => {
+            haptic.keep()
+            onDone([...picked])
+          }}
+        >
           {enough ? 'Start swiping →' : `Pick ${MIN_PICKS - picked.size} more`}
         </button>
       </div>

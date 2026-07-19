@@ -1,4 +1,4 @@
-import { topicName, topicEmoji } from '../data/topics.js'
+import { topicName, topicEmoji, topicColor } from '../data/topics.js'
 
 function hostOf(url) {
   try {
@@ -12,7 +12,7 @@ function hostOf(url) {
 // overlay while a drag is in progress.
 export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 }) {
   return (
-    <article className="card">
+    <article className="card" style={{ '--topic': topicColor(card.topic) }}>
       <div className="tag">
         <span>{topicEmoji(card.topic)}</span>
         {topicName(card.topic)}

@@ -8,6 +8,7 @@ import { CARDS } from './data/cards.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard } from './lib/scoring.js'
+import { haptic } from './lib/haptics.js'
 
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]))
 
@@ -152,7 +153,10 @@ export default function App() {
           <Profile
             state={state}
             onReset={hardReset}
-            onUpgradeAttempt={() => setToast('Curio+ is a prototype — no payment taken')}
+            onUpgradeAttempt={() => {
+              haptic.error()
+              setToast('Curio+ is a prototype — no payment taken')
+            }}
           />
         )}
       </main>
@@ -166,7 +170,10 @@ export default function App() {
           <button
             key={item.id}
             className={`navitem ${tab === item.id ? 'on' : ''}`}
-            onClick={() => setTab(item.id)}
+            onClick={() => {
+              haptic.nav()
+              setTab(item.id)
+            }}
           >
             <span className="ic">{item.ic}</span>
             {item.badge ? <span className="badge">{item.badge}</span> : null}

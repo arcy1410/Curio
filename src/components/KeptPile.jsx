@@ -1,4 +1,4 @@
-import { topicName, topicEmoji } from '../data/topics.js'
+import { topicName, topicEmoji, topicColor } from '../data/topics.js'
 
 function hostOf(url) {
   try {
@@ -30,7 +30,7 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor })
       ) : (
         <div className="kept-list">
           {keptCards.map((card) => (
-            <div className="kept-item" key={card.id}>
+            <div className="kept-item" key={card.id} style={{ '--topic': topicColor(card.topic) }}>
               <div className="tag">
                 {topicEmoji(card.topic)} {topicName(card.topic)}
                 {card.subtopic ? ` · ${card.subtopic}` : ''}

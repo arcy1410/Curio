@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { DEMO_COMMENTS } from '../data/demoComments.js'
 import { checkComment } from '../lib/profanity.js'
+import { haptic } from '../lib/haptics.js'
 
 function timeAgo(mins) {
   if (mins < 1) return 'just now'
@@ -41,9 +42,11 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
   function submit() {
     const res = checkComment(text)
     if (!res.ok) {
+      haptic.error()
       setErr(res.reason)
       return
     }
+    haptic.success()
     onAdd({ text: text.trim(), parentId: replyTo?.id ?? null })
     setText('')
     setReplyTo(null)

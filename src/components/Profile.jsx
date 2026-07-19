@@ -1,5 +1,6 @@
 import { TOPICS } from '../data/topics.js'
 import { topicDistribution } from '../lib/scoring.js'
+import { haptic } from '../lib/haptics.js'
 
 // Profile + the mocked Curio+ paywall. No real payment processor — the locked
 // state is a deliberate conversion-nudge pattern, shown even though nothing is
@@ -31,19 +32,9 @@ export default function Profile({ state, onReset, onUpgradeAttempt }) {
           { n: keepCount, l: 'Kept' },
           { n: state.interests.length, l: 'Interests' },
         ].map((s) => (
-          <div
-            key={s.l}
-            style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--line)',
-              borderRadius: 14,
-              padding: '16px 12px',
-              textAlign: 'center',
-              boxShadow: 'var(--shadow-soft)',
-            }}
-          >
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 600 }}>{s.n}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--ink-faint)', marginTop: 2 }}>{s.l}</div>
+          <div key={s.l} className="stat-tile">
+            <div className="n">{s.n}</div>
+            <div className="l">{s.l}</div>
           </div>
         ))}
       </div>
@@ -57,7 +48,14 @@ export default function Profile({ state, onReset, onUpgradeAttempt }) {
           <span
             key={t.id}
             className="chip"
-            style={{ fontSize: 13, padding: '6px 12px', background: 'var(--accent-soft)', borderColor: 'var(--accent-soft)', color: 'var(--accent)' }}
+            style={{
+              fontSize: 13,
+              padding: '6px 12px',
+              background: `color-mix(in srgb, ${t.color} 16%, transparent)`,
+              borderColor: `color-mix(in srgb, ${t.color} 35%, transparent)`,
+              color: t.color,
+              fontWeight: 700,
+            }}
           >
             {t.emoji} {t.name} · {Math.round((dist[t.id] ?? 0) * 100)}%
           </span>
@@ -115,7 +113,13 @@ export default function Profile({ state, onReset, onUpgradeAttempt }) {
       </div>
 
       <div style={{ marginTop: 24, textAlign: 'center' }}>
-        <button className="btn-ghost" onClick={onReset}>
+        <button
+          className="btn-ghost"
+          onClick={() => {
+            haptic.tap()
+            onReset()
+          }}
+        >
           Reset prototype
         </button>
       </div>

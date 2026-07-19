@@ -2,8 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import TinderCard from 'react-tinder-card'
 import Card from './Card.jsx'
 import TuningMeter from './TuningMeter.jsx'
+import { haptic } from '../lib/haptics.js'
 
 const DECK_SIZE = 3
+const BURST_EMOJI = ['✨', '💚', '🌟', '⭐', '💫', '🎉']
 
 // Maps swipe direction → our two actions. Up/down are disabled.
 function dirToAction(dir) {
@@ -24,8 +26,21 @@ export default function Feed({
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'keep' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
+  const [burst, setBurst] = useState(null) // { key, parts } emoji burst on keep
   const childRefs = useRef({})
   const swiped = useRef(new Set()) // guard against double-recording
+
+  function fireBurst() {
+    const parts = Array.from({ length: 6 }, (_, i) => ({
+      id: i,
+      e: BURST_EMOJI[Math.floor(Math.random() * BURST_EMOJI.length)],
+      dx: (Math.random() - 0.5) * 200,
+      dy: -70 - Math.random() * 130,
+      rot: `${(Math.random() - 0.5) * 90}deg`,
+    }))
+    setBurst({ key: Date.now(), parts })
+    setTimeout(() => setBurst(null), 900)
+  }
 
   function getRef(id) {
     if (!childRefs.current[id]) childRefs.current[id] = React.createRef()
@@ -51,6 +66,12 @@ export default function Feed({
     if (swiped.current.has(card.id)) return
     swiped.current.add(card.id)
     setDragDir(null)
+    if (action === 'keep') {
+      haptic.keep()
+      fireBurst()
+    } else {
+      haptic.pass()
+    }
     onSwipe(card, action)
   }
 
@@ -67,6 +88,7 @@ export default function Feed({
   async function trigger(action) {
     const top = deck[0]
     if (!top) return
+    haptic.tap()
     const ref = childRefs.current[top.id]
     const dir = action === 'keep' ? 'right' : 'left'
     if (ref?.current) {
@@ -136,6 +158,16 @@ export default function Feed({
               </TinderCard>
             )
           })}
+
+          {burst && (
+            <div className="burst" key={burst.key}>
+              {burst.parts.map((p) => (
+                <span key={p.id} style={{ '--dx': `${p.dx}px`, '--dy': `${p.dy}px`, '--rot': p.rot }}>
+                  {p.e}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {deck.length > 0 && (
@@ -144,7 +176,14 @@ export default function Feed({
               <button className="round pass" onClick={() => trigger('pass')} aria-label="Pass">
                 ✕
               </button>
-              <button className="round small" onClick={() => onOpenComments(deck[0])} aria-label="Comments">
+              <button
+                className="round small"
+                onClick={() => {
+                  haptic.open()
+                  onOpenComments(deck[0])
+                }}
+                aria-label="Comments"
+              >
                 💬
               </button>
               <button className="round keep" onClick={() => trigger('keep')} aria-label="Keep">
