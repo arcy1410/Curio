@@ -8,8 +8,10 @@ const DECK_SIZE = 3
 const BURST_EMOJI = ['✨', '💚', '🌟', '⭐', '💫', '🎉']
 
 // Maps swipe direction → our two actions. Up/down are disabled.
+// Right = "interested" (tunes the feed up, but does NOT save).
+// Left = "pass". Saving to the Kept pile is a separate, explicit button.
 function dirToAction(dir) {
-  if (dir === 'right') return 'keep'
+  if (dir === 'right') return 'interested'
   if (dir === 'left') return 'pass'
   return null
 }
@@ -22,11 +24,13 @@ export default function Feed({
   swipeCount,
   onOpenComments,
   commentCountFor,
+  onToggleSave,
+  isSaved,
 }) {
   const [deck, setDeck] = useState([]) // deck[0] = top card
-  const [dragDir, setDragDir] = useState(null) // 'keep' | 'pass' | null (top card only)
+  const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
-  const [burst, setBurst] = useState(null) // { key, parts } emoji burst on keep
+  const [burst, setBurst] = useState(null) // { key, parts } emoji burst on save
   const childRefs = useRef({})
   const swiped = useRef(new Set()) // guard against double-recording
 
@@ -66,12 +70,8 @@ export default function Feed({
     if (swiped.current.has(card.id)) return
     swiped.current.add(card.id)
     setDragDir(null)
-    if (action === 'keep') {
-      haptic.keep()
-      fireBurst()
-    } else {
-      haptic.pass()
-    }
+    if (action === 'interested') haptic.keep()
+    else haptic.pass()
     onSwipe(card, action)
   }
 
@@ -88,9 +88,8 @@ export default function Feed({
   async function trigger(action) {
     const top = deck[0]
     if (!top) return
-    haptic.tap()
     const ref = childRefs.current[top.id]
-    const dir = action === 'keep' ? 'right' : 'left'
+    const dir = action === 'pass' ? 'left' : 'right'
     if (ref?.current) {
       try {
         await ref.current.swipe(dir)
@@ -102,7 +101,22 @@ export default function Feed({
     }
   }
 
+  // Explicit save/unsave of the current top card.
+  function saveTop() {
+    const top = deck[0]
+    if (!top) return
+    const wasSaved = isSaved(top.id)
+    onToggleSave(top)
+    if (!wasSaved) {
+      haptic.success()
+      fireBurst()
+    } else {
+      haptic.tap()
+    }
+  }
+
   const topId = deck[0]?.id
+  const topSaved = topId ? isSaved(topId) : false
 
   return (
     <div>
@@ -186,11 +200,18 @@ export default function Feed({
               >
                 💬
               </button>
-              <button className="round keep" onClick={() => trigger('keep')} aria-label="Keep">
-                ♥
+              <button
+                className={`round small save ${topSaved ? 'on' : ''}`}
+                onClick={saveTop}
+                aria-label={topSaved ? 'Saved' : 'Save'}
+              >
+                🔖
+              </button>
+              <button className="round keep" onClick={() => trigger('interested')} aria-label="Interested">
+                👍
               </button>
             </div>
-            <div className="action-hint">← Pass · Keep → &nbsp;·&nbsp; or drag the card</div>
+            <div className="action-hint">← Pass · Interested → &nbsp;·&nbsp; 🔖 Save to keep</div>
           </>
         )}
       </div>

@@ -8,8 +8,8 @@ function hostOf(url) {
   }
 }
 
-// Presentational card. `swipeDir` (‘keep’ | ‘pass’ | null) drives the stamp
-// overlay while a drag is in progress.
+// Presentational card. `swipeDir` (‘interested’ | ‘pass’ | null) drives the
+// stamp overlay while a drag is in progress.
 export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 }) {
   return (
     <article className="card" style={{ '--topic': topicColor(card.topic) }}>
@@ -54,10 +54,10 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 
         💬 {commentCount > 0 ? `${commentCount} comment${commentCount === 1 ? '' : 's'}` : 'Add a comment'}
       </button>
 
-      <div className={`stamp keep ${swipeDir === 'keep' ? 'show' : ''}`} style={{ opacity: swipeDir === 'keep' ? 1 : 0 }}>
-        KEEP
+      <div className="stamp keep" style={{ opacity: swipeDir === 'interested' ? 1 : 0, fontSize: 18 }}>
+        INTERESTED
       </div>
-      <div className={`stamp pass ${swipeDir === 'pass' ? 'show' : ''}`} style={{ opacity: swipeDir === 'pass' ? 1 : 0 }}>
+      <div className="stamp pass" style={{ opacity: swipeDir === 'pass' ? 1 : 0 }}>
         PASS
       </div>
     </article>

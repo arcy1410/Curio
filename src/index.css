@@ -1174,3 +1174,55 @@ button {
     transform: translate(-50%, 16px) scale(0.8);
   }
 }
+
+/* ── Save button state (feed action row) ───────────────────── */
+.round.save.on {
+  color: var(--keep);
+  border-color: var(--keep);
+  background: var(--keep-soft);
+  box-shadow: 0 0 24px -6px var(--keep);
+}
+
+/* inline save / remove control in list rows */
+.comment-trigger.save-inline.on {
+  color: var(--keep);
+}
+
+/* ── Discovery ─────────────────────────────────────────────── */
+.back-link {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 700;
+  padding: 8px 0;
+  transition: color 0.15s, transform 0.15s var(--spring);
+}
+.back-link:active {
+  color: var(--accent);
+  transform: translateX(-3px);
+}
+
+.sub-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 6px;
+}
+.sub-filter .chip {
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s var(--spring);
+}
+.sub-filter .chip:active {
+  transform: scale(0.94);
+}
+.sub-filter .chip.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  font-weight: 700;
+}
+
+/* discovery shows the full card body (kept-pile clamps to 2 lines) */
+.discover-list .kept-item p {
+  -webkit-line-clamp: unset;
+  display: block;
+}

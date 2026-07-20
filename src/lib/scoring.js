@@ -18,9 +18,20 @@ export function initialScores(interests = []) {
   return scores
 }
 
+// A swipe nudges the topic's score. Right swipe = 'interested' (positive),
+// left swipe = 'pass' (negative). Saving is separate and does not go through here.
 export function applySwipe(scores, topicId, action) {
   const next = { ...scores }
-  next[topicId] = (next[topicId] ?? 0) + (action === 'keep' ? KEEP_DELTA : PASS_DELTA)
+  const delta = action === 'pass' ? PASS_DELTA : KEEP_DELTA
+  next[topicId] = (next[topicId] ?? 0) + delta
+  return next
+}
+
+// Give newly-added interests the same head start as onboarding, without
+// disturbing the scores the user's swipes have already built up.
+export function addInterestBonus(scores, addedIds = []) {
+  const next = { ...scores }
+  for (const id of addedIds) next[id] = (next[id] ?? 0) + ONBOARD_BONUS
   return next
 }
 

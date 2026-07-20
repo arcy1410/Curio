@@ -7,8 +7,10 @@ import { haptic } from '../lib/haptics.js'
 // across a larger taxonomy; the mechanism is identical.
 const MIN_PICKS = 2
 
-export default function Onboarding({ onDone }) {
-  const [picked, setPicked] = useState(() => new Set())
+// mode: 'onboard' (first run) | 'edit' (reselect interests later).
+export default function Onboarding({ onDone, mode = 'onboard', initialSelected = [], onCancel }) {
+  const [picked, setPicked] = useState(() => new Set(initialSelected))
+  const isEdit = mode === 'edit'
 
   function toggle(id) {
     haptic.select()
@@ -23,13 +25,28 @@ export default function Onboarding({ onDone }) {
 
   return (
     <div className="onboard">
-      <div className="wordmark" style={{ marginTop: 8 }}>
-        Curio<span className="dot">.</span>
-      </div>
-      <h1>What are you curious about?</h1>
+      {isEdit ? (
+        <button
+          className="back-link"
+          style={{ marginTop: 8 }}
+          onClick={() => {
+            haptic.nav()
+            onCancel?.()
+          }}
+        >
+          ← Cancel
+        </button>
+      ) : (
+        <div className="wordmark" style={{ marginTop: 8 }}>
+          Curio<span className="dot">.</span>
+        </div>
+      )}
+
+      <h1>{isEdit ? 'Edit your interests' : 'What are you curious about?'}</h1>
       <p className="lede">
-        Pick a few topics to start. Every swipe tunes your feed from here — keep what
-        you like, pass on what you don&apos;t.
+        {isEdit
+          ? 'Add or remove topics. New picks get a head start, and the taste your swipes have already built is kept.'
+          : "Pick a few topics to start. Every swipe tunes your feed from here — right to show interest, left to pass."}
       </p>
       <div className="count">
         {picked.size === 0
@@ -69,7 +86,11 @@ export default function Onboarding({ onDone }) {
             onDone([...picked])
           }}
         >
-          {enough ? 'Start swiping →' : `Pick ${MIN_PICKS - picked.size} more`}
+          {enough
+            ? isEdit
+              ? 'Save changes'
+              : 'Start swiping →'
+            : `Pick ${MIN_PICKS - picked.size} more`}
         </button>
       </div>
     </div>

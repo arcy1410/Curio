@@ -8,8 +8,8 @@ function hostOf(url) {
   }
 }
 
-// The saved pile — everything swiped right, most-recent first.
-export default function KeptPile({ keptCards, onOpenComments, commentCountFor }) {
+// The saved pile — everything the user explicitly saved, most-recent first.
+export default function KeptPile({ keptCards, onOpenComments, commentCountFor, onToggleSave }) {
   return (
     <div>
       <div className="kept-head">
@@ -25,7 +25,7 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor })
         <div className="empty" style={{ padding: '48px 20px' }}>
           <div className="big">📚</div>
           <h3>Nothing kept yet</h3>
-          <p>Swipe right on a card in your feed to save it here for later.</p>
+          <p>Tap 🔖 Save on a card to keep it here for later.</p>
         </div>
       ) : (
         <div className="kept-list">
@@ -47,9 +47,14 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor })
                 >
                   🔗 {hostOf(card.source_url)}
                 </a>
-                <button className="comment-trigger" onClick={() => onOpenComments(card)}>
-                  💬 {commentCountFor(card.id) || 'Comment'}
-                </button>
+                <div style={{ display: 'flex', gap: 14 }}>
+                  <button className="comment-trigger" onClick={() => onOpenComments(card)}>
+                    💬 {commentCountFor(card.id) || 'Comment'}
+                  </button>
+                  <button className="comment-trigger save-inline on" onClick={() => onToggleSave(card)}>
+                    🔖 Saved
+                  </button>
+                </div>
               </div>
             </div>
           ))}

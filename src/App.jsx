@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Onboarding from './components/Onboarding.jsx'
 import Feed from './components/Feed.jsx'
+import Discovery from './components/Discovery.jsx'
 import KeptPile from './components/KeptPile.jsx'
 import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { CARDS } from './data/cards.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState } from './lib/storage.js'
-import { initialScores, applySwipe, pickNextCard } from './lib/scoring.js'
+import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]))
 
 export default function App() {
   const [state, setState] = useState(loadState)
-  const [tab, setTab] = useState('feed') // feed | kept | profile
+  const [tab, setTab] = useState('feed') // feed | discover | kept | profile
   const [commentsCard, setCommentsCard] = useState(null)
   const [toast, setToast] = useState(null)
+  const [editingInterests, setEditingInterests] = useState(false)
 
   // Refs mirror the fields drawNext() depends on, so the deck always draws
   // against the freshest scores/seen even through async swipe callbacks.
@@ -33,7 +35,7 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
-  // ── Onboarding ──────────────────────────────────────────────
+  // ── Onboarding (first run) ──────────────────────────────────
   function finishOnboarding(interests) {
     const scores = initialScores(interests)
     scoresRef.current = scores
@@ -49,6 +51,16 @@ export default function App() {
     }))
   }
 
+  // ── Edit interests later (keeps learned scores; only bonuses new picks) ──
+  function saveInterests(interests) {
+    const added = interests.filter((id) => !state.interests.includes(id))
+    const nextScores = addInterestBonus(scoresRef.current, added)
+    scoresRef.current = nextScores
+    setState((s) => ({ ...s, interests, topicScores: nextScores }))
+    setEditingInterests(false)
+    setToast('Interests updated')
+  }
+
   // ── Draw the next weighted, unseen card ─────────────────────
   const drawNext = useCallback((excludeIds = []) => {
     const exclude = new Set([...seenRef.current, ...excludeIds])
@@ -56,9 +68,8 @@ export default function App() {
     return pickNextCard(pool, scoresRef.current)
   }, [])
 
-  // ── Record a swipe ──────────────────────────────────────────
+  // ── Record a swipe (interested | pass) — swiping no longer saves ──
   const recordSwipe = useCallback((card, action) => {
-    // update refs synchronously first
     const nextScores = applySwipe(scoresRef.current, card.topic, action)
     scoresRef.current = nextScores
     seenRef.current = new Set(seenRef.current).add(card.id)
@@ -68,11 +79,19 @@ export default function App() {
       topicScores: nextScores,
       seen: [...s.seen, card.id],
       swipes: [...s.swipes, { cardId: card.id, action, ts: Date.now() }],
-      kept: action === 'keep' ? [card.id, ...s.kept.filter((id) => id !== card.id)] : s.kept,
     }))
-
-    if (action === 'keep') setToast('Kept ♥')
   }, [])
+
+  // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
+  const isSaved = (cardId) => state.kept.includes(cardId)
+  function toggleSave(card) {
+    const already = state.kept.includes(card.id)
+    setState((s) => ({
+      ...s,
+      kept: already ? s.kept.filter((id) => id !== card.id) : [card.id, ...s.kept],
+    }))
+    setToast(already ? 'Removed from Kept' : 'Saved ♥')
+  }
 
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
   function replay() {
@@ -117,6 +136,19 @@ export default function App() {
     )
   }
 
+  if (editingInterests) {
+    return (
+      <div className="app">
+        <Onboarding
+          mode="edit"
+          initialSelected={state.interests}
+          onDone={saveInterests}
+          onCancel={() => setEditingInterests(false)}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -125,6 +157,7 @@ export default function App() {
         </div>
         <div className="sub">
           {tab === 'feed' && 'Swipe to tune your feed'}
+          {tab === 'discover' && 'Browse any topic'}
           {tab === 'kept' && 'Your saved cards'}
           {tab === 'profile' && 'Your Curio'}
         </div>
@@ -140,6 +173,16 @@ export default function App() {
             swipeCount={state.swipes.length}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
+            onToggleSave={toggleSave}
+            isSaved={isSaved}
+          />
+        )}
+        {tab === 'discover' && (
+          <Discovery
+            onOpenComments={setCommentsCard}
+            commentCountFor={commentCountFor}
+            onToggleSave={toggleSave}
+            isSaved={isSaved}
           />
         )}
         {tab === 'kept' && (
@@ -147,12 +190,17 @@ export default function App() {
             keptCards={keptCards}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
+            onToggleSave={toggleSave}
           />
         )}
         {tab === 'profile' && (
           <Profile
             state={state}
             onReset={hardReset}
+            onEditInterests={() => {
+              haptic.tap()
+              setEditingInterests(true)
+            }}
             onUpgradeAttempt={() => {
               haptic.error()
               setToast('Curio+ is a prototype — no payment taken')
@@ -164,6 +212,7 @@ export default function App() {
       <nav className="bottomnav">
         {[
           { id: 'feed', ic: '🗂️', label: 'Feed' },
+          { id: 'discover', ic: '🔍', label: 'Discover' },
           { id: 'kept', ic: '📌', label: 'Kept', badge: keptCards.length },
           { id: 'profile', ic: '👤', label: 'You' },
         ].map((item) => (

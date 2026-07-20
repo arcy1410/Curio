@@ -5,7 +5,7 @@ import { haptic } from '../lib/haptics.js'
 // Profile + the mocked Curio+ paywall. No real payment processor — the locked
 // state is a deliberate conversion-nudge pattern, shown even though nothing is
 // wired up (per the brief).
-export default function Profile({ state, onReset, onUpgradeAttempt }) {
+export default function Profile({ state, onReset, onUpgradeAttempt, onEditInterests }) {
   const swipeCount = state.swipes.length
   const keepCount = state.kept.length
   const dist = topicDistribution(state.topicScores)
@@ -61,6 +61,14 @@ export default function Profile({ state, onReset, onUpgradeAttempt }) {
           </span>
         ))}
       </div>
+
+      <button
+        className="btn-ghost"
+        style={{ width: '100%', marginTop: 14 }}
+        onClick={onEditInterests}
+      >
+        ✎ Edit interests
+      </button>
 
       {/* Locked Curio+ element example */}
       <div className="locked" style={{ marginTop: 20 }}>
