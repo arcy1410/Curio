@@ -12,18 +12,83 @@ retained knowledge instead of nothing.
 **Target user:** Indian users, 18–30, who spend 2+ hrs/day on Reels/Shorts, want
 to feel like they're learning, but find news apps boring and long articles too much.
 
+## Course context — this is a graded ISB SWPM build (read before scoping)
+
+Curio is the term project for **Software Product Management (SWPM)**, Indian School
+of Business, AY 2025-27 Term 6 (instructor Vishal Karungulam). It is a **field-based,
+learning-by-doing** course: teams of 5 take one real product through the full PM
+lifecycle — customer discovery → problem/solution validation → MVP → ship → measure
+— and present at **Demo Day** with *real users and real metrics, not plans*. Claude
+Code is named in the syllabus as the sanctioned build toolkit, so building Curio with
+Claude is exactly what's intended.
+
+**Hard requirements that shape the build:**
+
+- **Live with real users by Session 7.** Not a prototype — a deployed product real
+  people can use. (We're deployed on Vercel already; the gap is real users + a real
+  content backend.)
+- **Instrumentation from day one — REQUIRED, not optional.** Set up **PostHog or
+  Mixpanel** so every core action (onboard, swipe keep/pass, card open, comment,
+  paywall view/click) is tracked. This is currently NOT in the app and is the most
+  important near-term addition. The product must be *measurement-ready*.
+- **Metrics framework + dashboard.** Define a **North Star metric** (candidate:
+  cards *kept & retained* per weekly active user — retention of knowledge, not just
+  swipes), plus **input metrics** (swipes/session, keep-rate, D1/D7 return) and
+  **guardrail metrics** (session length not ballooning into doom-scroll; comment
+  toxicity). Build a **Product Metrics Dashboard**. At Demo Day, present funnel,
+  cohort/retention, and one root-cause analysis on live data.
+- **Ethics is in scope, and Curio is squarely a target.** The course covers
+  persuasive technology, dark patterns, variable rewards, and the PM's accountability
+  for what the product does *to* users. Curio deliberately reuses the Reels/Shorts
+  habit loop — so we must be able to defend the line between *healthy learning habit*
+  and *attention capture*: the greyed-out paywall is a conversion nudge (own it as
+  one), personalization must not become a filter-bubble/surveillance story, and a
+  guardrail metric should watch for compulsive use. Have a clear answer for "what
+  could Curio do badly to a user, and how does the design prevent it?"
+- **GTM & monetization thinking.** Curio+ (mocked paywall) is the monetization story;
+  distribution is India-first (cricket/markets/Bollywood/history as wedge content).
+  These need a reasoned strategy for Demo Day, even though payment stays mocked.
+
+**Graded deliverables (map work to these):**
+
+| Deliverable | Type | Weight | Coding scheme |
+|---|---|---|---|
+| Personas, Problem & Solution Hypothesis | Individual | 15% | 3N-a |
+| MVP Feature & Prioritization Rationale | Group | 10% | 2N-b |
+| Product Specification Document | Individual | 15% | 4N |
+| Product Metrics Dashboard | Group | 10% | 0N |
+| Reflection Essay | Individual | 10% | 4N |
+| Class Participation | Individual | 10% | — |
+| Final Demo | Group | 30% | 2N-c |
+
+**Academic-integrity guardrail (important):** Claude should help **build the product**
+and can brainstorm/discuss freely (that's what the course sanctions). But the graded
+**individual written documents** — Product Spec and Reflection Essay (**4N**) and the
+Personas/Problem-Solution doc (**3N-a**) — must be the student's own original work; do
+**not** ghost-write these. 4N forbids external material and collaboration; 3N-a allows
+discussing general concepts only. When asked to produce one of these, help the student
+think, structure, and critique — but they write it. If unsure how AI assistance maps
+onto a coding scheme, the student should confirm with the instructor.
+
 ## Current status (2026-07-19)
 
-The **clickable React prototype is built, verified working, and committed** (branch
-`main`). It is **frontend-only** — seed content + `localStorage`, no backend or LLM
-yet. This prototype IS the scaffold the real product grows from.
+The React prototype is **built, verified, and shipped live** — pushed to GitHub
+([github.com/arcy1410/Curio](https://github.com/arcy1410/Curio)) and deployed on
+Vercel (**https://curio-three-iota.vercel.app/**, auto-deploys on push to `main`).
+It is still **frontend-only** — seed content + `localStorage`, no backend or LLM yet.
+This prototype IS the scaffold the real product grows from.
 
 Working: onboarding topic picker · swipe feed (`react-tinder-card` + Keep/Pass
 buttons) · additive topic-weight personalization with a visible "tuning" meter ·
 kept pile · per-card comments (one reply level) with a profanity filter · mocked
-Curio+ paywall (locked state, no payment) · 22 hand-written source-cited cards.
+Curio+ paywall (locked state, no payment) · 22 hand-written source-cited cards ·
+dark high-contrast theme with per-topic neon colors, haptics, and micro-interactions.
 
-Not done yet: push to GitHub, deploy to Vercel, and all of Phase 2 below.
+**Gaps to a course-graded product (in rough priority):** (1) **analytics
+instrumentation** (PostHog/Mixpanel) — required from day one, not yet added; (2) a
+**real content backend + LLM pipeline** (Supabase + Sonnet-generates / Haiku-verifies,
+Phase 2 below) so cards aren't a fixed seed set; (3) **real users** on the live link
+by Session 7; (4) a **Product Metrics Dashboard** on live data for Demo Day.
 
 ## Environment gotchas
 
