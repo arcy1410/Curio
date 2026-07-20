@@ -84,11 +84,15 @@ kept pile · per-card comments (one reply level) with a profanity filter · mock
 Curio+ paywall (locked state, no payment) · 22 hand-written source-cited cards ·
 dark high-contrast theme with per-topic neon colors, haptics, and micro-interactions.
 
-**Gaps to a course-graded product (in rough priority):** (1) **analytics
-instrumentation** (PostHog/Mixpanel) — required from day one, not yet added; (2) a
-**real content backend + LLM pipeline** (Supabase + Sonnet-generates / Haiku-verifies,
-Phase 2 below) so cards aren't a fixed seed set; (3) **real users** on the live link
-by Session 7; (4) a **Product Metrics Dashboard** on live data for Demo Day.
+**Gaps to a course-graded product (in build order):** (1) a **real content backend +
+LLM pipeline** (Supabase + Sonnet-generates / Haiku-verifies, Phase 2 below) so cards
+aren't a fixed seed set — this is the foundational piece; (2) **analytics
+instrumentation** (PostHog/Mixpanel) added *alongside* the Session-4 MVP build — it's
+frontend-only so it never blocks on the backend, but only produces signal once real
+users are on it, so instrument at build/launch time, not before; (3) **real users** on
+the live link by Session 7; (4) a **Product Metrics Dashboard** on live data for Demo
+Day. (Course ideal is "instrument from day one," but the syllabus bundles PostHog setup
+into the Session-4 build workshop — so backend-then-instrument is the right sequence.)
 
 ## Environment gotchas
 
