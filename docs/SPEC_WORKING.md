@@ -173,9 +173,83 @@ deliberate future decision, not scope creep.
 
 ---
 
-## 3. Narratives — *in progress*
+## 3. Narratives
 
 Day 0 / Day N × Greenfield / Brownfield, per the Session 3 structure.
+Narratives deliberately include friction and uncertainty, not just the happy
+path — that is what they are for.
+
+### N1 — Day 0, Greenfield (first-ever visit, nothing set up)
+
+**Priya, 23, is a first-year analyst in Gurgaon.** It's 11:40 pm and she's
+been on Instagram Reels for over an hour; the familiar mix of guilt and
+boredom sets in. A college friend has shared a Curio link in their group chat
+with "this is like reels but you actually learn something."
+
+She taps the link. No app store, no signup — a dark screen asks *"What are
+you curious about?"* with four topics. She's unsure how many to pick; the
+button reads "Pick 2 more," which resolves it. She taps **Cricket** and
+**Markets** and hits *Start swiping →*.
+
+The first card is about the 1983 World Cup final. She reads it — takes about
+a minute — and notices a **✓ Fact-checked** badge and a Wikipedia source
+link. She's mildly skeptical of "AI content," so she taps the source; it
+opens the real article. That lands: the card wasn't making it up.
+
+Her Reels muscle memory kicks in and she swipes right without thinking. The
+card flies away and a new one appears — but *uncertainty*: did that save it?
+Where did it go? She spots the 🔖 button and the hint "← Pass · Interested →
+· 🔖 Save to keep," and works out that right-swipe means *more like this*
+while Save is deliberate. On the next card she likes, she taps 🔖 — a toast
+confirms "Saved ♥" and a badge appears on the Kept tab.
+
+After ~8 swipes, the meter above the deck reads *"Leaning Markets."* She
+opens it, sees percentage bars, and realizes the feed is openly telling her
+what it thinks she likes.
+
+**Success:** she's read 6 cards, saved 2, can retell one fact from memory,
+and — when she closes the tab at 11:55 — nothing nagged her to stay. Next
+morning the link is still in her chat, and her Kept pile is still there when
+she returns.
+
+### N2 — Day 0, Brownfield (existing data, first encounter with new capabilities)
+
+**Rohan, 26, has used Curio on his phone's browser for a week** — back when
+a right swipe meant *Keep*. He has 5 cards in his Kept pile, and his feed
+leans firmly toward History. A friend mentions "Curio changed, there's a
+Discover thing now." He opens his usual tab.
+
+Nothing asks him to re-onboard. His Kept pile still shows all 5 cards; the
+meter still reads *"Leaning History"* — his week of tuning survived the
+update. *(Under the hood: his stored state loads into the new schema, with
+new fields defaulting safely.)*
+
+He starts swiping. A card about the Cholas is excellent — he right-swipes
+it, exactly as he's done all week, and moves on. Three cards later he goes
+to Kept to re-read it. **It isn't there.** Confusion, then mild annoyance:
+right-swipe no longer saves. The card is gone from the deck and there's no
+way to swipe back to it. This is the brownfield cost of our semantics
+change: his trained habit now silently does something different from what it
+did last week — the feed *did* register his interest, but the card he wanted
+is lost to him. *(He can only re-find it by browsing its topic in Discover —
+if he thinks to.)*
+
+He notices the hint line — "← Pass · Interested → · 🔖 Save to keep" — and
+the new bookmark button, and re-learns the gesture. It costs him one lost
+card and thirty seconds of distrust.
+
+He then spots the new **Discover** tab: all four topics browsable, including
+Bollywood, which he never picked. He reads two cards there, saves one with
+🔖 — deliberately this time. Back on his feed, History still dominates;
+exploring didn't reset anything.
+
+**Success:** his old data survived untouched, he adapted to the new save
+gesture within one session, and Discover gave him a reason to come back.
+**Exposed by this narrative, not solved:** we shipped a swipe-semantics
+change with **no migration cue** — an existing user learns the new meaning
+only by losing a card. A one-time "what's new: right swipe no longer saves —
+use 🔖" notice for returning users is a real gap this narrative surfaces
+(candidate requirement for §4).
 
 ## 4. Requirements & Features — *pending*
 
