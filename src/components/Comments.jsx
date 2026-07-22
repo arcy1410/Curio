@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DEMO_COMMENTS } from '../data/demoComments.js'
 import { checkComment } from '../lib/profanity.js'
+import { fetchThread, postComment } from '../lib/comments.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
 
@@ -12,18 +13,19 @@ function timeAgo(mins) {
   return `${Math.floor(h / 24)}d`
 }
 
-// Merge read-only demo comments with user-added ones for a card, normalising
-// both into { id, author, text, parentId, minsAgo } shape.
-function buildThread(cardId, userComments) {
-  const demo = (DEMO_COMMENTS[cardId] || []).map((c) => ({ ...c, demo: true }))
-  const mine = (userComments || []).map((c) => ({
+// Normalise a locally-stored comment into the shape the server returns, so
+// the render path below never has to know where a comment came from.
+function fromLocal(c) {
+  return {
     id: c.id,
     author: 'You',
     text: c.text,
     parentId: c.parentId ?? null,
     minsAgo: Math.max(0, (Date.now() - c.ts) / 60000),
-  }))
-  const all = [...demo, ...mine]
+  }
+}
+
+function organise(all) {
   const tops = all.filter((c) => !c.parentId)
   const repliesOf = (id) => all.filter((c) => c.parentId === id)
   return { tops, repliesOf, count: all.length }
@@ -33,19 +35,39 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
   const [text, setText] = useState('')
   const [replyTo, setReplyTo] = useState(null) // { id, author }
   const [err, setErr] = useState('')
+  const [thread, setThread] = useState(null) // null = still loading
+  const [offline, setOffline] = useState(false)
   const areaRef = useRef(null)
 
-  const { tops, repliesOf, count } = useMemo(
-    () => buildThread(card.id, userComments),
-    [card.id, userComments]
-  )
+  // The local pile is now a FALLBACK, not the source of truth. It renders only
+  // when the store is unreachable — otherwise a user would see their own
+  // comment twice, once from each place.
+  const localThread = useMemo(() => {
+    const demo = (DEMO_COMMENTS[card.id] || []).map((c) => ({ ...c, demo: true }))
+    return [...demo, ...(userComments || []).map(fromLocal)]
+  }, [card.id, userComments])
+
+  const load = useCallback(async () => {
+    const { comments, ok } = await fetchThread(card.id)
+    setOffline(!ok)
+    setThread(ok ? comments : localThread)
+  }, [card.id, localThread])
 
   useEffect(() => {
+    load()
+  }, [load])
+
+  const { tops, repliesOf, count } = organise(thread ?? [])
+
+  useEffect(() => {
+    if (thread === null) return // don't report a count we haven't loaded yet
     track(EV.COMMENTS_OPENED, { card_id: card.id, topic: card.topic, comment_count: count })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card.id])
+  }, [card.id, thread === null])
 
-  function submit() {
+  async function submit() {
+    // Client check first, purely for instant feedback while typing. The
+    // database runs the same rules and has the final say — see comments.js.
     const res = checkComment(text)
     if (!res.ok) {
       haptic.error()
@@ -54,11 +76,33 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
       track(EV.COMMENT_REJECTED, { card_id: card.id, reason: res.reason })
       return
     }
-    haptic.success()
-    onAdd({ text: text.trim(), parentId: replyTo?.id ?? null })
+
+    const body = text.trim()
+    const parentId = replyTo?.id ?? null
     setText('')
     setReplyTo(null)
     setErr('')
+
+    const { comment, error } = await postComment({ cardId: card.id, text: body, parentId })
+    if (error) {
+      haptic.error()
+      setErr(error)
+      setText(body) // give the text back rather than losing what they wrote
+      track(EV.COMMENT_REJECTED, { card_id: card.id, reason: 'server' })
+      // Keep it on this device so the thought isn't lost outright.
+      onAdd({ text: body, parentId })
+      return
+    }
+
+    haptic.success()
+    setThread((t) => [...(t ?? []), comment])
+    // Never send the comment text itself — only structural facts.
+    track(EV.COMMENT_POSTED, {
+      card_id: card.id,
+      topic: card.topic,
+      is_reply: Boolean(parentId),
+      length_bucket: body.length < 40 ? 'short' : body.length < 140 ? 'medium' : 'long',
+    })
   }
 
   function startReply(c) {
@@ -71,17 +115,25 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="grab" />
         <div className="sheet-head">
-          <h3>{count} comment{count === 1 ? '' : 's'}</h3>
+          <h3>{thread === null ? 'Comments' : `${count} comment${count === 1 ? '' : 's'}`}</h3>
           <button className="x" onClick={onClose} aria-label="Close">
             ✕
           </button>
         </div>
 
         <div className="comments">
-          {tops.length === 0 && (
+          {thread === null && <div className="comment-empty">Loading comments…</div>}
+
+          {thread !== null && tops.length === 0 && (
             <div className="comment-empty">
               No comments yet.<br />
               Be the first to say something.
+            </div>
+          )}
+
+          {offline && thread !== null && (
+            <div className="comment-empty" style={{ paddingBottom: 0 }}>
+              Showing comments saved on this device — we couldn&apos;t reach the others.
             </div>
           )}
 

@@ -6,6 +6,7 @@ import KeptPile from './components/KeptPile.jsx'
 import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
+import { fetchCommentCounts } from './lib/comments.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
@@ -242,25 +243,36 @@ export default function App() {
   }
 
   // ── Comments ────────────────────────────────────────────────
-  function addComment({ text, parentId }) {
+  //
+  // Comments live in Supabase now, so this is only the salvage path: it keeps
+  // a comment on the device when the post failed, so the user doesn't lose
+  // what they wrote. COMMENT_POSTED is fired by Comments.jsx on the success
+  // path — firing it here would have counted every failure as a post.
+  function stashCommentLocally({ text, parentId }) {
     const cardId = commentsCard.id
     const entry = { id: `u${Date.now()}`, text, parentId: parentId ?? null, ts: Date.now() }
     setState((s) => ({
       ...s,
       comments: { ...s.comments, [cardId]: [...(s.comments[cardId] || []), entry] },
     }))
-    // Never send the comment text itself — only structural facts.
-    track(EV.COMMENT_POSTED, {
-      card_id: cardId,
-      topic: commentsCard.topic,
-      is_reply: Boolean(parentId),
-      length_bucket: text.length < 40 ? 'short' : text.length < 140 ? 'medium' : 'long',
-    })
   }
 
+  // Server counts for the card face, refreshed when the sheet closes so a new
+  // comment updates the number behind it.
+  const [commentCounts, setCommentCounts] = useState({})
+  const refreshCommentCounts = useCallback(() => {
+    fetchCommentCounts().then(setCommentCounts)
+  }, [])
+  useEffect(() => {
+    refreshCommentCounts()
+  }, [refreshCommentCounts])
+
   const commentCountFor = useCallback(
-    (cardId) => (DEMO_COMMENTS[cardId]?.length || 0) + (state.comments[cardId]?.length || 0),
-    [state.comments]
+    (cardId) =>
+      // Server count when we have one; the local tally is the offline answer.
+      commentCounts[cardId] ??
+      (DEMO_COMMENTS[cardId]?.length || 0) + (state.comments[cardId]?.length || 0),
+    [commentCounts, state.comments]
   )
 
   // Cards saved before the Supabase migration reference the old seed IDs and
@@ -385,8 +397,11 @@ export default function App() {
         <Comments
           card={commentsCard}
           userComments={state.comments[commentsCard.id]}
-          onAdd={addComment}
-          onClose={() => setCommentsCard(null)}
+          onAdd={stashCommentLocally}
+          onClose={() => {
+            setCommentsCard(null)
+            refreshCommentCounts()
+          }}
         />
       )}
 
