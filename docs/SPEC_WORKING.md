@@ -6,8 +6,8 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** Goals + Non-Goals + Narratives + Requirements (§1–4) complete ·
-Error Scenarios onward: in progress
+**Status:** Goals + Non-Goals + Narratives + Requirements + Error Scenarios
+(§1–5) complete · Telemetry onward: in progress
 
 ---
 
@@ -365,25 +365,36 @@ filter by subtopic with an explicit **All** chip and a visible count; save
 (🔖, +3, Kept, cap applies) or open comments per row; back out freely.
 **No swipe controls on rows** — Discover is scroll-and-read only.
 
-**Business rules:** **read in Discover = seen everywhere.** A card that
-actually entered view in the list is marked `seen` and is not served again
-in the feed — no duplicates across surfaces. (Stated implication: scrolling
-a full topic list retires those cards from the feed; acceptable — the user
-already read them. Makes the R10 pipeline more load-bearing at 21 cards.)
-Reading alone never scores; only Save (+3) does. Topic availability is
-never gated by interests — Discover is the anti-filter-bubble surface (G5).
+**Business rules:** **read in Discover = seen everywhere.** A card is
+marked `seen` only after it stays in viewport for **30 continuous seconds**
+of active foreground time (backgrounding the tab or switching apps pauses
+the timer, never counts toward it) — a genuine read, not a scroll-past.
+When uncertain (rapid scrolling, backgrounding right at the boundary), the
+card stays **unmarked** — the deliberate bias is toward an occasional
+duplicate re-serve over silently burning a scarce card from the pool (see
+E4). Once marked, the card is not served again in the feed — no duplicates
+across surfaces. (Stated implication: genuinely reading through a full topic
+list retires those cards from the feed; acceptable — the user already read
+them. Makes the R10 pipeline more load-bearing at 21 cards.) Reading alone
+never scores; only Save (+3) does. Topic availability is never gated by
+interests — Discover is the anti-filter-bubble surface (G5).
 
-**Output:** Discover-read cards enter `seen`; `discovery_opened`,
-`discovery_topic_selected {topic, card_count}`,
-`discovery_subtopic_filtered {topic, subtopic}`, `card_saved {source:
-discovery}` with +3. No `card_swiped` ever originates from Discover.
+**Output:** Discover-read cards enter `seen`; `discovery_card_read {card_id,
+dwell_ms}` fires only when the 30s threshold is met — distinct from
+`discovery_opened`, `discovery_topic_selected {topic, card_count}`, and
+`discovery_subtopic_filtered {topic, subtopic}`, which just mean the list
+was opened/filtered. Comparing rows rendered vs. `discovery_card_read`
+count gives the real read-through rate, separate from list-open counts.
+`card_saved {source: discovery}` fires with +3. No `card_swiped` ever
+originates from Discover.
 
 **Exceptions:** zero-card subtopics show an honest empty state (routine in
 the target release while the pipeline back-fills). Target release: counts
 reflect only `verified: true` cards — unverified output invisible here as
-in the feed (G3 applies everywhere). **Build status:** viewport
-seen-marking and the surface-dependent save weight are new work items.
-Known constraint (G5): several subtopics currently hold 1 card.
+in the feed (G3 applies everywhere). **Build status:** the 30s
+viewport-dwell seen-marking (pausing on background, biased toward
+under-marking per E4) and the surface-dependent save weight are new work
+items. Known constraint (G5): several subtopics currently hold 1 card.
 
 ### R6 — Comments
 
@@ -562,7 +573,140 @@ push — most of the target audience couldn't receive them. Revisit alongside
 any future PWA/native decision. R6's "no reply notifications" scope line
 stands for this release.
 
-## 5. Error Scenarios — *pending*
+## 5. Error Scenarios
+
+Each scenario states: what failed · how it's recognized · what state is
+preserved · what the user sees · what they can do next · what's logged.
+
+### E1 — Auth service unreachable at the sign-in gate
+
+**What failed:** the user hits swipe 8 (R9's gate), but Supabase Auth can't
+be reached (network drop, outage, timeout) — distinct from a user-facing
+auth failure like a wrong OTP.
+
+**State preserved:** all 7 anonymous swipes, scores, and saves stay exactly
+as they are in localStorage; the card the user was on remains visible
+underneath the wall.
+
+**What the user sees:** the wall, with an honest substitution for the
+sign-up form: *"Can't reach sign-in right now. Your progress is saved — try
+again in a moment."* No spinner implying self-resolution; no silent
+fallback letting them keep swiping (that would defeat the gate and mask the
+failure).
+
+**What they can do next:** retry the same auth call — deliberately the only
+action; a "skip for now" would either break the gate's purpose or invent an
+unspecced partially-gated state.
+
+**Logged:** `signup_gate_error {reason: 'auth_unreachable', swipe_count: 7}`
+— distinct from `signup_abandoned` so the dashboard can tell "we broke" from
+"they declined."
+
+**Recovery guarantee:** once auth is reachable, retry succeeds with zero
+data loss — R9's "fail closed on the gate, open on reading" rule made
+concrete.
+
+### E2 — Signup succeeds but the state merge fails
+
+**What failed:** the account is created and the user authenticated, but
+writing their 7 anonymous swipes/scores/Kept/seen/comments into the new
+account fails partway or entirely (network drop mid-write, malformed local
+record, server error).
+
+**How it's recognized:** the merge is confirmed as a step **independent**
+of auth success — auth succeeding is never treated as merge succeeding.
+
+**State preserved — the non-negotiable rule:** **local anonymous state is
+never deleted until the server confirms the merge succeeded.** Clearing
+localStorage optimistically and then having the write fail would silently
+lose everything with no error shown at all — a direct violation of R9's
+"merge, never discard" promise.
+
+**What the user sees:** never a visibly reset feed (empty meter, 0 kept,
+generic first card) — that alone would tell them progress is gone before
+we've even tried to fix it. Instead: signed in, local 7-swipe state renders
+exactly as before, a small non-blocking sync indicator shows in the
+background. If unresolved after a short window: *"Syncing your progress —
+this may take a moment."* If retries exhaust: *"We couldn't sync your
+earlier swipes to your account. Keep going — nothing local was lost."*
+
+**What they can do next:** nothing required — the app works from local
+state while retrying silently in the background.
+
+**Logged:** `state_merge_started`, `state_merge_failed {attempt, reason}`,
+`state_merge_succeeded {retries}` — retry count on eventual success
+distinguishes a rare blip from a systemic problem.
+
+**Recovery guarantee:** local state is the source of truth until the server
+confirms otherwise — the worst case is "slower sync," never "silent data
+loss."
+
+### E3 — Pipeline stalls and a returning user hits "caught up" expecting fresh content
+
+**What failed:** the R10 pipeline stops producing new verified cards for a
+stretch (Guardian/verification down, or a topic's cards keep failing Haiku
+until retries exhaust) — the store stops growing while users keep consuming
+from it.
+
+**How it's recognized:** the feed's exhaustion check (R2) fires as normal,
+but the system distinguishes **two different reasons** for hitting empty:
+"you've read everything that exists" vs. "the store hasn't grown in N
+hours" — these must not share the same message.
+
+**State preserved:** R2's existing rule, unchanged — replay clears `seen`,
+preserves scores and Kept.
+
+**What the user sees:** if content genuinely hasn't arrived recently, the
+caught-up screen says so honestly — *"You're caught up — new fact-checked
+cards land daily, check back soon"* — never dressing up a stalled pipeline
+as "you're just really well-read." Directly protects **G4**: a user who
+returns on day 2 to stale re-served content learns fast that returning
+isn't rewarded.
+
+**What they can do next:** *Swipe again* still works (re-serves from the
+existing library, per R2) — staleness is disappointing, not broken; the app
+never dead-ends.
+
+**Logged:** `feed_exhausted {cards_seen, hours_since_last_new_card}` — that
+last field turns a UI event into an operational alarm, read alongside R10's
+own pipeline-run telemetry (generated/passed/discarded counts). This event
+is the **user-impact proof** that an operational problem has become a
+product problem.
+
+**Recovery guarantee:** none available client-side — the actual fix is
+operational (R10 pipeline health), not client-side; getting the wording
+honest is the only thing in this scenario's control.
+
+### E4 — Discover's viewport "seen" marking must not falsely burn scarce content
+
+**What failed (a precise rule, not just a failure):** R5 requires 30
+continuous seconds of active-foreground dwell before a card is marked
+`seen` — a naive "any pixel visible" implementation would burn cards during
+a fast scroll-past that the user never actually read, worsening the
+content-scarcity risk already flagged in G2/G5/R2/R10.
+
+**How it's recognized:** dwell time excludes backgrounded/app-switched time
+— only active foreground viewing counts toward the 30s.
+
+**The safe default when uncertain:** **under-marking, not over-marking.**
+Ambiguous cases (rapid scrolling, backgrounding right at the boundary) stay
+unmarked. An occasional duplicate re-serve is the cheaper failure than
+silently deleting a scarce card from the pool.
+
+**State preserved:** nothing to recover — this is prevention, not recovery;
+the "state" being protected is the card pool itself.
+
+**What the user sees:** nothing directly (invisible plumbing). The
+observable symptom of getting this *wrong* is **E3** firing too early
+relative to actual Discover reading — the two scenarios are linked.
+
+**Logged:** `discovery_card_read {card_id, dwell_ms}` fires only at the 30s
+mark — comparing rows rendered vs. this count gives the real read-through
+rate, separate from list-open counts.
+
+**Recovery guarantee:** none needed if the threshold is honored — this
+scenario's purpose is making the *correct* implementation explicit enough
+that "mark seen on any visibility" never ships by default.
 
 ## 6. Telemetry — *pending*
 
