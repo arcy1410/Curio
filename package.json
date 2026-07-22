@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/dwell.test.mjs"
+    "test": "node tests/dwell.test.mjs && node tests/scoring.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.5",

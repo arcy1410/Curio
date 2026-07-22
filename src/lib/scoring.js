@@ -31,11 +31,34 @@ export function applySwipe(scores, topicId, action) {
   return next
 }
 
-// Give newly-added interests the same head start as onboarding, without
-// disturbing the scores the user's swipes have already built up.
+/**
+ * R7 — a newly added topic jumps straight to PARITY with the user's current
+ * favourite, not to a token bonus on top of its own score.
+ *
+ * The difference is the whole requirement. A +4 nudge is meaningless against
+ * weeks of tuning: someone at cricket 40 who adds history moves history from
+ * 0 to 4 and still sees cricket ~10x more often, so the edit they just made
+ * appears to have done nothing. Parity means the new topic competes with the
+ * strongest one immediately.
+ *
+ * The max is taken BEFORE any assignment, so adding two topics at once puts
+ * both at parity with the existing favourite rather than the first one
+ * bootstrapping the second.
+ *
+ * Re-adding a removed topic follows the same rule; re-selecting a topic the
+ * user already has is not an "add" and grants nothing (no bonus farming).
+ */
 export function addInterestBonus(scores, addedIds = []) {
   const next = { ...scores }
-  for (const id of addedIds) next[id] = (next[id] ?? 0) + ONBOARD_BONUS
+  if (!addedIds.length) return next
+
+  const currentMax = Math.max(0, ...TOPICS.map((t) => scores[t.id] ?? 0))
+  const target = Math.max(currentMax, ONBOARD_BONUS)
+  for (const id of addedIds) {
+    // Never lower a score: a topic that somehow already sits above the max
+    // keeps what it earned.
+    next[id] = Math.max(next[id] ?? 0, target)
+  }
   return next
 }
 

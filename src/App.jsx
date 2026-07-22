@@ -206,6 +206,7 @@ export default function App() {
     const removed = state.interests.filter((id) => !interests.includes(id))
     const nextScores = addInterestBonus(scoresRef.current, added)
     scoresRef.current = nextScores
+    injectRef.current = [...injectRef.current, ...added]
     setState((s) => ({ ...s, interests, topicScores: nextScores }))
     setEditingInterests(false)
     setToast('Interests updated')
@@ -222,10 +223,29 @@ export default function App() {
     syncScores(nextScores)
   }
 
+  // R7 guaranteed visibility: topics queued here get the NEXT draw, ahead of
+  // the weighted lottery. Parity alone is only probabilistic — a user who adds
+  // a topic and then sees three cards of something else has no evidence their
+  // edit did anything, which is the exact complaint R7 exists to fix.
+  //
+  // Deliberately not persisted: the score parity survives a reload and does
+  // the long-run work; this only smooths the moment right after the edit.
+  const injectRef = useRef([])
+
   // ── Draw the next weighted, unseen card ─────────────────────
   const drawNext = useCallback((excludeIds = []) => {
     const exclude = new Set([...seenRef.current, ...excludeIds])
     const pool = cardsRef.current.filter((c) => !exclude.has(c.id))
+
+    // One injected card per added topic, then normal weighted draw resumes.
+    while (injectRef.current.length) {
+      const topic = injectRef.current.shift()
+      const candidates = pool.filter((c) => c.topic === topic)
+      // Nothing unseen left in that topic — drop it rather than blocking the
+      // queue on a promise the library cannot keep.
+      if (candidates.length) return pickNextCard(candidates, scoresRef.current)
+    }
+
     return pickNextCard(pool, scoresRef.current)
   }, [])
 
