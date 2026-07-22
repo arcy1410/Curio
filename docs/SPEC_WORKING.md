@@ -6,8 +6,9 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** §1–6 complete (Goals · Non-Goals · Narratives · Requirements ·
-Error Scenarios · Telemetry) · Acceptance Criteria onward: in progress
+**Status:** §1–7 complete (Goals · Non-Goals · Narratives · Requirements ·
+Error Scenarios · Telemetry · Acceptance Criteria) · NFRs and
+Prioritization: in progress
 
 ---
 
@@ -771,7 +772,81 @@ free-form user text ever sent.
 | **Filter-bubble / top-topic share** (G2, G5) | Aggregation over `card_viewed` / `discovery_topic_selected` topic distributions vs. baseline — a query, not a new event. |
 | **Paywall pressure** (over-gating check) | `save_limit_reached` rate + `paywall_clicked {feature}` — the same numbers serve monetization analysis and guard against gating too hard. |
 
-## 7. Acceptance Criteria — *pending*
+## 7. Acceptance Criteria
+
+Given / When / Then, each testable. These cover the most rule-dense parts
+of §4–5 — the places where a precise test matters most.
+
+### AC1 — Score ladder: exact deltas
+
+- Given a card of topic T with score 4, **when** the user swipes left,
+  **then** T's score is exactly 3 (−1).
+- Given T at 4, **when** the user swipes right, **then** T is exactly 7 (+3).
+- Given T at 4, **when** the user saves from the feed, **then** T is exactly
+  9 (+5 — not +3, not +8).
+- Given T at 4, **when** the user saves from Discover, **then** T is exactly
+  7 (+3).
+
+### AC2 — Save auto-swipes
+
+- Given a top card in the feed, **when** the user taps 🔖, **then** in one
+  action: the card is in Kept, the deck advances to the next card, and both
+  `card_saved` and `card_swiped {action: interested, method: save}` are
+  recorded — and the swipe is not double-counted if the animation stalls.
+
+### AC3 — The 20-save cap
+
+- Given a user with exactly 20 saved cards, **when** they attempt a 21st
+  save, **then** the card is not added, no score changes, the card does not
+  auto-swipe, the Curio+ nudge is shown, and `save_limit_reached
+  {kept_count: 20}` fires.
+- Given a user at 20 who unsaves one card, **when** they save another,
+  **then** the save succeeds normally.
+
+### AC4 — The 7-swipe gate
+
+- Given an anonymous user with 7 recorded swipe-actions, **when** they
+  attempt an 8th (swipe *or* save), **then** the action is blocked, the
+  auth wall appears with the current card visible beneath it, and
+  `signup_gate_shown {swipe_count: 7}` fires.
+- Given the wall is shown, **when** the user dismisses it without signing
+  up, **then** they can still read the current card, browse Discover, and
+  open their Kept pile — but any further swipe/save re-raises the wall.
+
+### AC5 — Merge preserves everything
+
+- Given an anonymous user with 7 swipes, 3 kept cards, and tuned scores,
+  **when** they sign up and the merge completes, **then** the account
+  contains all 7 swipes, all 3 kept cards, and identical scores — and
+  localStorage is cleared only *after* server confirmation.
+- Given the merge fails after signup, **when** the user continues using the
+  app, **then** local state renders unchanged (no reset feed, no empty
+  Kept) and retries proceed in the background.
+
+### AC6 — 30-second dwell
+
+- Given a Discover card in viewport for 29 seconds, **when** the user
+  scrolls away, **then** the card is *not* marked seen and can still appear
+  in the feed.
+- Given a card in viewport for 20s, **when** the user backgrounds the tab
+  for a minute and returns for 10s more, **then** the card is marked seen
+  only after those 10 foreground seconds complete the 30 (paused — not
+  reset, not counted during background).
+
+### AC7 — Verification gate is structural
+
+- Given a card in the store with `verified: false` (or no `source_url`),
+  **when** the feed or Discover draws content, **then** that card can never
+  be served — under any topic weighting, any pool exhaustion, any filter.
+  Exhaustion with unverified cards remaining still shows "caught up."
+
+### AC8 — New-topic parity boost
+
+- Given a user whose top score is 19 (History), **when** they add Bollywood
+  via Edit interests, **then** Bollywood's score becomes exactly 19, and at
+  least one Bollywood card is served within the next 3 feed draws.
+- Given a fresh-ish user whose top score is 2, **when** they add a topic,
+  **then** it gets the +4 head-start (the higher of the two rules).
 
 ## 8. Non-Functional Requirements — *pending*
 
