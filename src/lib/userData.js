@@ -128,6 +128,24 @@ export async function syncScores(scores) {
   }
 }
 
+/** Record a Discover read (R5). Reads never score — they only retire a card. */
+export async function syncRead({ cardId, dwellMs }) {
+  if (!isSyncable(cardId)) return
+  try {
+    const w = await writer()
+    if (!w) return
+    await w.supabase
+      .from('card_reads')
+      .upsert(
+        { user_id: w.user.id, card_id: cardId, dwell_ms: dwellMs },
+        { onConflict: 'user_id,card_id' }
+      )
+      .then(checked('read'))
+  } catch {
+    // as above
+  }
+}
+
 /** Store the topics chosen at onboarding on the profile. */
 export async function syncInterests(interests) {
   try {
@@ -203,20 +221,24 @@ export async function hydrate() {
     const w = { supabase }
     const uid = user.id
 
-    const [swipes, saved, scores, profile] = await Promise.all([
+    const [swipes, saved, scores, profile, reads] = await Promise.all([
       w.supabase.from('swipes').select('card_id,action').eq('user_id', uid),
       w.supabase.from('saved_cards').select('card_id').eq('user_id', uid).order('saved_at', { ascending: false }),
       w.supabase.from('topic_scores').select('topic_id,score').eq('user_id', uid),
       w.supabase.from('profiles').select('interests').eq('id', uid).maybeSingle(),
+      w.supabase.from('card_reads').select('card_id').eq('user_id', uid),
     ])
 
     const swipeRows = swipes.data ?? []
     const savedRows = saved.data ?? []
     const scoreRows = scores.data ?? []
-    if (!swipeRows.length && !savedRows.length && !scoreRows.length) return null
+    const readRows = reads.data ?? []
+    if (!swipeRows.length && !savedRows.length && !scoreRows.length && !readRows.length) return null
 
     return {
-      seen: swipeRows.map((r) => r.card_id),
+      // Seen is the union of swiped and read — R5: "read in Discover = seen
+      // everywhere", so a card read on one device is not re-served on another.
+      seen: [...new Set([...swipeRows.map((r) => r.card_id), ...readRows.map((r) => r.card_id)])],
       swipes: swipeRows.map((r) => ({ cardId: r.card_id, action: r.action, ts: 0 })),
       kept: savedRows.map((r) => r.card_id),
       topicScores: Object.fromEntries(scoreRows.map((r) => [r.topic_id, Number(r.score)])),

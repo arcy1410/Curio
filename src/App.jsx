@@ -8,7 +8,15 @@ import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { fetchCommentCounts } from './lib/comments.js'
 import { onAuthChange, isPermanent, signOut, ensureDisplayName } from './lib/session.js'
-import { syncSwipe, syncSave, syncScores, syncInterests, hydrate, mergeState } from './lib/userData.js'
+import {
+  syncSwipe,
+  syncSave,
+  syncScores,
+  syncInterests,
+  syncRead,
+  hydrate,
+  mergeState,
+} from './lib/userData.js'
 import AuthWall from './components/AuthWall.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
@@ -250,6 +258,19 @@ export default function App() {
     syncScores(nextScores)
   }, [])
 
+  // ── R5: a Discover read retires the card from the feed ──────
+  //
+  // Reading NEVER scores — only Save does (+3). This marks the card seen and
+  // nothing else, which is the point: it stops a card the user has already
+  // read from being served to them again as if it were new.
+  const recordRead = useCallback((cardId, dwellMs) => {
+    if (seenRef.current.has(cardId)) return
+    seenRef.current = new Set(seenRef.current).add(cardId)
+    setState((s) => (s.seen.includes(cardId) ? s : { ...s, seen: [...s.seen, cardId] }))
+    track(EV.DISCOVERY_CARD_READ, { card_id: cardId, dwell_ms: dwellMs })
+    syncRead({ cardId, dwellMs })
+  }, [])
+
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
   // Spec R4: free tier caps at 20 saves; a feed save auto-swipes right with
   // +5 (recorded as an 'interested' swipe, method 'save'); a Discover save
@@ -449,6 +470,8 @@ export default function App() {
         {tab === 'discover' && (
           <Discovery
             cards={cards}
+            onCardRead={recordRead}
+            alreadySeen={state.seen}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'discovery')}

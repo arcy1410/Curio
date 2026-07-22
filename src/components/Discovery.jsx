@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TOPICS, topicColor, topicEmoji, topicName } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
+import { createDwellTracker } from '../lib/dwell.js'
 
 function hostOf(url) {
   try {
@@ -13,7 +14,15 @@ function hostOf(url) {
 
 // Discovery — pick any topic and drill into every card in it, filtered by
 // sub-topic. Cards can be saved to the Kept pile straight from here.
-export default function Discovery({ cards = [], onOpenComments, commentCountFor, onToggleSave, isSaved }) {
+export default function Discovery({
+  cards = [],
+  onOpenComments,
+  commentCountFor,
+  onToggleSave,
+  isSaved,
+  onCardRead = () => {},
+  alreadySeen = [],
+}) {
   const CARDS = cards // library comes from App (Supabase-backed, seed fallback)
   const [topicId, setTopicId] = useState(null)
   const [sub, setSub] = useState(null)
@@ -21,6 +30,41 @@ export default function Discovery({ cards = [], onOpenComments, commentCountFor,
   useEffect(() => {
     track(EV.DISCOVERY_OPENED)
   }, [])
+
+  // R5: a card read here counts as seen everywhere.
+  //
+  // The tracker is created INSIDE the effect, not in a useMemo. StrictMode
+  // mounts, unmounts and remounts every effect in development — with a
+  // memoised tracker the first cleanup called disconnect() on the one instance
+  // that useMemo would never rebuild, so dwell tracking was silently dead for
+  // the whole session. Owning it in the effect means the remount gets a live
+  // tracker.
+  //
+  // Rows render before the effect runs, so refs land in `pending` and are
+  // attached once the tracker exists — and re-attached on every remount.
+  const readRef = useRef(onCardRead)
+  readRef.current = onCardRead
+  const trackerRef = useRef(null)
+  const pendingRef = useRef(new Map())
+  const seenRef = useRef(alreadySeen)
+  seenRef.current = alreadySeen
+
+  useEffect(() => {
+    const tracker = createDwellTracker((cardId, dwellMs) => readRef.current(cardId, dwellMs))
+    tracker.markDone(seenRef.current) // never re-fire for cards already retired
+    trackerRef.current = tracker
+    for (const [id, el] of pendingRef.current) tracker.observe(el, id)
+    return () => {
+      tracker.disconnect()
+      trackerRef.current = null
+    }
+  }, [])
+
+  const observeRow = (el, cardId) => {
+    if (!el) return
+    pendingRef.current.set(cardId, el)
+    trackerRef.current?.observe(el, cardId)
+  }
 
   // ── Topic chooser ──
   if (!topicId) {
@@ -116,7 +160,12 @@ export default function Discovery({ cards = [], onOpenComments, commentCountFor,
         {shown.map((card) => {
           const saved = isSaved(card.id)
           return (
-            <div className="kept-item" key={card.id} style={{ '--topic': topicColor(card.topic) }}>
+            <div
+              className="kept-item"
+              key={card.id}
+              ref={(el) => observeRow(el, card.id)}
+              style={{ '--topic': topicColor(card.topic) }}
+            >
               <div className="tag">
                 {topicEmoji(card.topic)} {topicName(card.topic)}
                 {card.subtopic ? ` · ${card.subtopic}` : ''}

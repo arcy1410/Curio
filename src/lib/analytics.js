@@ -139,6 +139,7 @@ export const EV = {
   DISCOVERY_OPENED: 'discovery_opened',
   DISCOVERY_TOPIC_SELECTED: 'discovery_topic_selected',
   DISCOVERY_SUBTOPIC_FILTERED: 'discovery_subtopic_filtered',
+  DISCOVERY_CARD_READ: 'discovery_card_read', // {card_id, dwell_ms} — 30s dwell met (R5)
 
   // comments (quality / guardrail)
   COMMENTS_OPENED: 'comments_opened',
