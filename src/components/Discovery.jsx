@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { TOPICS, topicColor, topicEmoji, topicName } from '../data/topics.js'
-import { CARDS } from '../data/cards.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
 
@@ -14,7 +13,8 @@ function hostOf(url) {
 
 // Discovery — pick any topic and drill into every card in it, filtered by
 // sub-topic. Cards can be saved to the Kept pile straight from here.
-export default function Discovery({ onOpenComments, commentCountFor, onToggleSave, isSaved }) {
+export default function Discovery({ cards = [], onOpenComments, commentCountFor, onToggleSave, isSaved }) {
+  const CARDS = cards // library comes from App (Supabase-backed, seed fallback)
   const [topicId, setTopicId] = useState(null)
   const [sub, setSub] = useState(null)
 

@@ -5,14 +5,12 @@ import Discovery from './components/Discovery.jsx'
 import KeptPile from './components/KeptPile.jsx'
 import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
-import { CARDS } from './data/cards.js'
+import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 import { track, setPersonProps, resetAnalytics, EV } from './lib/analytics.js'
-
-const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]))
 
 export default function App() {
   const [state, setState] = useState(loadState)
@@ -20,6 +18,32 @@ export default function App() {
   const [commentsCard, setCommentsCard] = useState(null)
   const [toast, setToast] = useState(null)
   const [editingInterests, setEditingInterests] = useState(false)
+
+  // Card library. Starts as the bundled seed set so the first paint is
+  // instant and the feed is never empty, then swaps to the Supabase store
+  // once it loads. If the store is unreachable we simply stay on seed —
+  // spec R2: the feed must stay responsive when the store isn't.
+  const [cards, setCards] = useState(SEED_CARDS)
+  const [cardSource, setCardSource] = useState('seed')
+  const cardsRef = useRef(SEED_CARDS) // drawNext reads this, never a stale closure
+
+  useEffect(() => {
+    let cancelled = false
+    loadCards().then(({ cards: loaded, source, error }) => {
+      if (cancelled) return
+      cardsRef.current = loaded
+      setCards(loaded)
+      setCardSource(source)
+      if (import.meta.env.DEV) {
+        console.info(`[cards] ${loaded.length} from ${source}${error ? ` (${error})` : ''}`)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const cardById = useMemo(() => Object.fromEntries(cards.map((c) => [c.id, c])), [cards])
 
   // Refs mirror the fields drawNext() depends on, so the deck always draws
   // against the freshest scores/seen even through async swipe callbacks.
@@ -93,7 +117,7 @@ export default function App() {
   // ── Draw the next weighted, unseen card ─────────────────────
   const drawNext = useCallback((excludeIds = []) => {
     const exclude = new Set([...seenRef.current, ...excludeIds])
-    const pool = CARDS.filter((c) => !exclude.has(c.id))
+    const pool = cardsRef.current.filter((c) => !exclude.has(c.id))
     return pickNextCard(pool, scoresRef.current)
   }, [])
 
@@ -239,9 +263,12 @@ export default function App() {
     [state.comments]
   )
 
+  // Cards saved before the Supabase migration reference the old seed IDs and
+  // will not resolve against UUID-keyed rows; filter(Boolean) drops them
+  // rather than rendering holes. See the migration note in CLAUDE.md.
   const keptCards = useMemo(
-    () => state.kept.map((id) => CARD_BY_ID[id]).filter(Boolean),
-    [state.kept]
+    () => state.kept.map((id) => cardById[id]).filter(Boolean),
+    [state.kept, cardById]
   )
 
   if (!state.onboarded) {
@@ -295,6 +322,7 @@ export default function App() {
         )}
         {tab === 'discover' && (
           <Discovery
+            cards={cards}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'discovery')}
