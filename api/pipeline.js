@@ -25,27 +25,35 @@ import { generateVerifiedCard } from './_lib/cardgen.js'
 //
 // `seeds` are durable Wikipedia articles used to top up a topic when trending
 // yields nothing groundable — they keep a run productive on a quiet news day.
+// `titleMustMatch` is the India-first guarantee. A body-level query alone let
+// a 4,000-word piece on Australian scheduling through because it mentioned the
+// IPL once; requiring the signal in the HEADLINE is what actually keeps the
+// wedge intact.
 const TOPIC_SOURCES = {
   cricket: {
     guardianSection: 'sport',
     guardianQuery: 'cricket AND (India OR Indian OR IPL)',
+    titleMustMatch: /\b(india|indian|ipl|kohli|rohit|bumrah|bcci|ranji|mumbai|chennai|kolkata)\b/i,
     seeds: ['Indian Premier League', 'India national cricket team', 'Cricket World Cup'],
   },
   markets: {
     guardianSection: 'business',
     guardianQuery: '(India OR Indian OR rupee OR Sensex OR Mumbai) AND (economy OR markets OR stocks)',
+    titleMustMatch: /\b(india|indian|rupee|sensex|nifty|mumbai|adani|ambani|reliance|rbi)\b/i,
     seeds: ['BSE SENSEX', 'NIFTY 50', 'Reserve Bank of India'],
   },
   bollywood: {
     guardianSection: 'film',
     guardianQuery: 'Bollywood OR "Hindi cinema" OR "Indian film"',
+    titleMustMatch: /\b(bollywood|hindi|india|indian|khan|bachchan|kapoor|mumbai)\b/i,
     seeds: ['Bollywood', 'Cinema of India', 'Filmfare Awards'],
   },
   history: {
     // No section: Guardian files Indian history across culture, world and
-    // books. The query alone is the better filter here.
+    // books. The query and headline filter do the work here.
     guardianSection: null,
     guardianQuery: '"Indian history" OR "ancient India" OR Mughal OR Maurya',
+    titleMustMatch: /\b(india|indian|mughal|maurya|ancient|empire|partition|delhi)\b/i,
     seeds: ['History of India', 'Maurya Empire', 'Indus Valley Civilisation'],
   },
 }
@@ -74,6 +82,7 @@ async function findSources(topic, limit) {
       const trending = await fetchGuardianTrending(config.guardianSection, {
         limit,
         query: config.guardianQuery,
+        titleMustMatch: config.titleMustMatch,
       })
       // Resolve each trending headline to a Wikipedia article where we can —
       // Wikipedia gives durable, checkable prose; a news article goes stale.

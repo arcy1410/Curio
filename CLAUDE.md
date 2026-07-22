@@ -151,6 +151,20 @@ Supabase swap is mechanical.
 **Model split (keeps per-card runtime cost low, verify step uncompromised):**
 Opus builds the app · **Sonnet generates** cards · **Haiku fact-checks** them.
 
+**Interim provider (2026-07-22): Gemini, not Anthropic.** Anthropic API credits
+are pending an international payment, so the pipeline currently runs on the
+Gemini free tier — `gemini-2.5-flash` generates, `gemini-3.5-flash-lite`
+verifies (`api/_lib/gemini.js`). `activeProvider()` in `api/_lib/cardgen.js`
+picks Anthropic automatically the moment `ANTHROPIC_API_KEY` is set; no other
+change is needed to revert. Same prompts, same two-model structure, so this
+swaps the model without touching the editorial rules.
+
+**Be honest about the weakness:** generator and verifier are now two models
+from *one family*, which is a weaker independent check than a cross-vendor
+pair. It held up under adversarial testing (it catches invented facts, subtle
+number swaps, and — hardest — claims that are true in reality but absent from
+the source), but Sonnet+Haiku remains the target design, not a nice-to-have.
+
 ## MVP scope — BUILD these
 
 Onboarding picker · swipe feed with real fact-checked cards (India-first: cricket,

@@ -129,15 +129,30 @@ export async function searchWikipedia(query) {
  * unavailable the pipeline still runs on Wikipedia/TMDB. Callers should treat
  * a throw here as non-fatal.
  */
-export async function fetchGuardianTrending(section, { limit = 5, query } = {}) {
+export async function fetchGuardianTrending(
+  section,
+  { limit = 5, query, titleMustMatch, excludeOpinion = true } = {}
+) {
   const key = process.env.GUARDIAN_API_KEY
   if (!key) throw new Error('GUARDIAN_API_KEY not set')
 
   const params = new URLSearchParams({
     'api-key': key,
-    'page-size': String(limit),
+    // Over-fetch: opinion and off-topic filtering below discards a lot, and
+    // asking for exactly `limit` would leave us short after filtering.
+    'page-size': String(Math.max(limit * 4, 20)),
     'show-fields': 'bodyText,headline',
+    'show-tags': 'tone',
   })
+
+  // Curio cards are factual reference, not commentary. A Guardian opinion
+  // column can be summarised perfectly faithfully and still be the wrong
+  // *kind* of source — the verifier only checks groundedness, never whether
+  // the source should have been used. So opinion is excluded here, at
+  // selection time, which is the only place it can be caught.
+  if (excludeOpinion) {
+    params.set('tag', '-tone/comment,-tone/blog,-tone/editorials,-tone/letters,-tone/obituaries')
+  }
 
   // Two things matter here, and the second is easy to miss.
   //
@@ -165,14 +180,26 @@ export async function fetchGuardianTrending(section, { limit = 5, query } = {}) 
   if (!res.ok) throw new Error(`guardian ${res.status}`)
 
   const data = await res.json()
+  const OPINION_URL = /\/(blog|commentisfree|series)\//i
+
   return (data?.response?.results ?? [])
     .map((r) => ({
       title: r.fields?.headline || r.webTitle,
       text: (r.fields?.bodyText || '').trim(),
       url: r.webUrl,
       type: 'guardian',
+      tones: (r.tags ?? []).map((t) => t.id),
     }))
     .filter((r) => r.text.length >= MIN_SOURCE_CHARS)
+    // Belt and braces: the tag filter above is server-side, but Guardian
+    // files some commentary under URLs the tag query still lets through.
+    .filter((r) => !excludeOpinion || !OPINION_URL.test(r.url))
+    .filter((r) => !excludeOpinion || !r.tones.some((t) => /tone\/(comment|blog|editorials)/.test(t)))
+    // Relevance must be in the HEADLINE, not merely somewhere in the body.
+    // A 4,000-word piece on Australian scheduling that mentions the IPL once
+    // matches a body-level query but is not an Indian-cricket card.
+    .filter((r) => !titleMustMatch || titleMustMatch.test(r.title))
+    .slice(0, limit)
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -19,6 +19,11 @@ import {
 const GENERATOR = 'claude-sonnet-5'
 const VERIFIER = 'claude-haiku-4-5'
 
+// "~150 words / a 2-minute read" is a product promise, not a preference.
+// Cards outside this band are regenerated rather than published.
+const WORD_MIN = 120
+const WORD_MAX = 170
+
 /**
  * Which provider runs the generate/verify pair.
  *
@@ -238,6 +243,15 @@ export async function generateVerifiedCard({ source, topicName, subtopicName, ma
     attempts++
     const card = await gen({ source, topicName, subtopicName })
     cost += card.cost
+
+    // Length is part of the product promise ("a 2-minute read", ~150 words),
+    // so an over-long card is a failed attempt, not a publishable one. Checked
+    // before verification because it's free and rejects early.
+    const words = card.body.trim().split(/\s+/).length
+    if (words < WORD_MIN || words > WORD_MAX) {
+      lastFlags = [`length out of budget: ${words} words (allowed ${WORD_MIN}-${WORD_MAX})`]
+      continue
+    }
 
     const check = await check_({ source, card })
     cost += check.cost
