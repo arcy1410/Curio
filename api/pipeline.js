@@ -12,7 +12,12 @@
 // it must never reach the client bundle.
 
 import { createClient } from '@supabase/supabase-js'
-import { fetchWikipedia, searchWikipedia, fetchGuardianTrending } from './_lib/sources.js'
+import {
+  fetchWikipedia,
+  searchWikipedia,
+  fetchGuardianTrending,
+  SENSITIVE_TOPIC,
+} from './_lib/sources.js'
 import { generateVerifiedCard } from './_lib/cardgen.js'
 
 // How each Curio topic maps onto trending input.
@@ -29,23 +34,38 @@ import { generateVerifiedCard } from './_lib/cardgen.js'
 // a 4,000-word piece on Australian scheduling through because it mentioned the
 // IPL once; requiring the signal in the HEADLINE is what actually keeps the
 // wedge intact.
+//
+// `topicMustMatch` answers a question `titleMustMatch` never asks: is this
+// about the topic the reader picked? India-relevance and topic-relevance are
+// independent, and assuming one implies the other produced two distinct bugs:
+//   • resolution drift — a markets headline resolved to the Wikipedia article
+//     "Second presidency of Donald Trump", a history headline to "India
+//     women's national cricket team". Both India-relevant, neither on topic.
+//   • an India-relevant Guardian piece about women's cricket filed under
+//     history, because the headline said "India" and nothing checked further.
+// So EVERY candidate — the Wikipedia resolution and the Guardian article it
+// came from — has to match the topic, or it isn't used.
 const TOPIC_SOURCES = {
   cricket: {
     guardianSection: 'sport',
     guardianQuery: 'cricket AND (India OR Indian OR IPL)',
     titleMustMatch: /\b(india|indian|ipl|kohli|rohit|bumrah|bcci|ranji|mumbai|chennai|kolkata)\b/i,
+    topicMustMatch: /\b(cricket|ipl|test match|odi|twenty20|t20|bcci|ranji|wicket|batting|bowling)\b/i,
     seeds: ['Indian Premier League', 'India national cricket team', 'Cricket World Cup'],
   },
   markets: {
     guardianSection: 'business',
     guardianQuery: '(India OR Indian OR rupee OR Sensex OR Mumbai) AND (economy OR markets OR stocks)',
     titleMustMatch: /\b(india|indian|rupee|sensex|nifty|mumbai|adani|ambani|reliance|rbi)\b/i,
+    topicMustMatch:
+      /\b(econom\w*|market\w*|stock\w*|share\w*|trade|tariff|bank\w*|financ\w*|rupee|sensex|nifty|exchange|inflation|invest\w*|compan\w*|industr\w*|startup)\b/i,
     seeds: ['BSE SENSEX', 'NIFTY 50', 'Reserve Bank of India'],
   },
   bollywood: {
     guardianSection: 'film',
     guardianQuery: 'Bollywood OR "Hindi cinema" OR "Indian film"',
     titleMustMatch: /\b(bollywood|hindi|india|indian|khan|bachchan|kapoor|mumbai)\b/i,
+    topicMustMatch: /\b(film\w*|cinema|movie\w*|bollywood|actor|actress|director|screenplay|filmfare|soundtrack)\b/i,
     seeds: ['Bollywood', 'Cinema of India', 'Filmfare Awards'],
   },
   history: {
@@ -54,6 +74,13 @@ const TOPIC_SOURCES = {
     guardianSection: null,
     guardianQuery: '"Indian history" OR "ancient India" OR Mughal OR Maurya',
     titleMustMatch: /\b(india|indian|mughal|maurya|ancient|empire|partition|delhi)\b/i,
+    // Wider than the others on purpose: "history" in Curio means heritage,
+    // religion, archaeology and dynasties, not just articles with "history"
+    // in the title. Matched against the article's opening prose, not the bare
+    // title — "Shiva" is a perfectly good history source but its title alone
+    // says nothing.
+    topicMustMatch:
+      /\b(histor\w*|ancient|medieval|centur\w*|empire|dynast\w*|kingdom|civilisation|civilization|archaeolog\w*|hindu\w*|buddhis\w*|jain\w*|deit\w*|temple|mughal|maurya|gupta|colonial|partition|independence movement|heritage|monument)\b/i,
     seeds: ['History of India', 'Maurya Empire', 'Indus Valley Civilisation'],
   },
 }
@@ -86,10 +113,28 @@ async function findSources(topic, limit) {
       })
       // Resolve each trending headline to a Wikipedia article where we can —
       // Wikipedia gives durable, checkable prose; a news article goes stale.
+      // Title + opening prose, never the bare title: "Shiva" is a perfectly
+      // good history source but its title alone carries no topic signal.
+      const onTopic = (doc) =>
+        !config.topicMustMatch ||
+        config.topicMustMatch.test(`${doc.title} ${doc.text.slice(0, 600)}`)
+
       for (const item of trending.slice(0, limit)) {
         const title = await searchWikipedia(item.title)
         const wiki = title ? await fetchWikipedia(title) : null
-        sources.push(wiki || item) // fall back to the Guardian body text itself
+
+        // The headline passed the editorial filter, but the article it
+        // resolves to may not: a film-censorship headline can resolve to the
+        // Wikipedia article on the war the film is about.
+        const usable = wiki && !SENSITIVE_TOPIC.test(wiki.title) && onTopic(wiki) ? wiki : null
+
+        // Prefer Wikipedia (durable, checkable); fall back to the Guardian
+        // piece only if it is itself on topic. If neither is, take neither —
+        // the seed articles below will fill the slot with something that is.
+        const chosen = usable || (onTopic(item) ? item : null)
+        if (!chosen) continue
+
+        sources.push(chosen)
         if (sources.length >= limit) break
       }
     } catch (e) {

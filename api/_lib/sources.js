@@ -129,9 +129,26 @@ export async function searchWikipedia(query) {
  * unavailable the pipeline still runs on Wikipedia/TMDB. Callers should treat
  * a throw here as non-fatal.
  */
+/**
+ * Topics Curio will not build a card about from trending news.
+ *
+ * This is an editorial line, not a safety filter. Curio's promise is a calm
+ * 2-minute learning habit; a swipe feed is the wrong container for a live
+ * atrocity, and a reader cannot meaningfully "Pass" on one they have already
+ * read. Trending-driven generation surfaces whatever is trending, so the
+ * decision has to be made here — the verifier only asks whether claims are
+ * grounded, never whether the subject belonged in the feed.
+ *
+ * Scoped deliberately to GUARDIAN TRENDING ONLY. Wikipedia seeds are curated
+ * by us, so history cards can still cover Partition, the World Wars or famine
+ * — settled historical material, chosen on purpose, not today's casualties.
+ */
+const SENSITIVE_TOPIC =
+  /\b(war|warfare|genocide|massacre|atrocit\w*|airstrike|air strike|shelling|bombing|bomb blast|terror\w*|militant|insurgen\w*|casualt\w*|death toll|killed|killings|murder|shooting|stabbing|rape|sexual assault|abuse|suicide|self-harm|riot\w*|lynch\w*|communal violence|hostage|famine|refugee crisis|gaza|israel|palestin\w*|hamas|ukraine|russia['’]?s invasion|kashmir violence)\b/i
+
 export async function fetchGuardianTrending(
   section,
-  { limit = 5, query, titleMustMatch, excludeOpinion = true } = {}
+  { limit = 5, query, titleMustMatch, excludeOpinion = true, excludeSensitive = true } = {}
 ) {
   const key = process.env.GUARDIAN_API_KEY
   if (!key) throw new Error('GUARDIAN_API_KEY not set')
@@ -180,7 +197,10 @@ export async function fetchGuardianTrending(
   if (!res.ok) throw new Error(`guardian ${res.status}`)
 
   const data = await res.json()
-  const OPINION_URL = /\/(blog|commentisfree|series)\//i
+  // `live` is here for a different reason than the rest: a rolling live blog
+  // is a chronological log of a day, not an article about a subject. It
+  // summarises into a card that is stale within hours.
+  const OPINION_URL = /\/(blog|commentisfree|series|live)\//i
 
   return (data?.response?.results ?? [])
     .map((r) => ({
@@ -199,6 +219,11 @@ export async function fetchGuardianTrending(
     // A 4,000-word piece on Australian scheduling that mentions the IPL once
     // matches a body-level query but is not an Indian-cricket card.
     .filter((r) => !titleMustMatch || titleMustMatch.test(r.title))
+    // Editorial exclusion. Checked against the headline AND the opening of the
+    // body: a piece can be headlined neutrally ("censor board blocks film")
+    // and still be entirely about a war. Only the opening is scanned — a
+    // passing mention 3,000 words in is not what the card will be about.
+    .filter((r) => !excludeSensitive || !SENSITIVE_TOPIC.test(`${r.title} ${r.text.slice(0, 600)}`))
     .slice(0, limit)
 }
 
@@ -241,4 +266,4 @@ export async function fetchTmdbFilm(query) {
   }
 }
 
-export { MIN_SOURCE_CHARS }
+export { MIN_SOURCE_CHARS, SENSITIVE_TOPIC }
