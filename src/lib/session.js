@@ -50,6 +50,24 @@ export function getClient() {
   return clientPromise
 }
 
+/**
+ * The current user, or null — WITHOUT creating one.
+ *
+ * The difference from ensureUser() matters: reads must never mint an identity.
+ * If restoring history created an anonymous account, every visitor would get
+ * an auth.users row just for opening the page, before doing anything at all.
+ */
+export async function existingUser() {
+  const supabase = await getClient()
+  if (!supabase) return null
+  try {
+    const { data } = await supabase.auth.getSession()
+    return data?.session?.user ?? null
+  } catch {
+    return null
+  }
+}
+
 /** A user who has actually signed in, as opposed to an anonymous shell. */
 export function isPermanent(user) {
   return Boolean(user && user.is_anonymous === false)

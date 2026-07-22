@@ -8,6 +8,7 @@ import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { fetchCommentCounts } from './lib/comments.js'
 import { onAuthChange, isPermanent, signOut, ensureDisplayName } from './lib/session.js'
+import { syncSwipe, syncSave, syncScores, syncInterests, hydrate, mergeState } from './lib/userData.js'
 import AuthWall from './components/AuthWall.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
@@ -48,11 +49,43 @@ export default function App() {
   const statsRef = useRef({ swipes: 0, kept: 0 })
   statsRef.current = { swipes: state.swipes.length, kept: state.kept.length }
 
+  /**
+   * Pull this account's history down and fold it into local state.
+   *
+   * Runs whenever a signed-in session appears — including on a fresh device,
+   * which is the entire point: without this, signing in on a second phone
+   * restores nothing and G4's cross-device promise is empty.
+   *
+   * hydrate() returns null when the server has nothing, so a new account can
+   * never blank a device that already has history.
+   */
+  const restoreFromServer = useCallback(() => {
+    hydrate().then((server) => {
+      if (!server) return
+      setState((local) => {
+        const merged = mergeState(local, server)
+        // The refs feed drawNext(), so they have to move with the state or the
+        // deck keeps dealing cards this account already swiped.
+        scoresRef.current = merged.topicScores
+        seenRef.current = new Set(merged.seen)
+        return merged
+      })
+    })
+  }, [])
+
   useEffect(() => {
     // Fires on load with any restored session — including the one Supabase
     // rebuilds from the OAuth redirect — and again on sign-in/sign-out.
     return onAuthChange((user) => {
       setAuthUser(user)
+
+      // Restore for ANY session, anonymous included. The session is the
+      // identity; a name is just attached to it later. Gating this on
+      // isPermanent meant an anonymous user who cleared their app state — or
+      // whose device dropped it — silently started over while their history
+      // sat on the server.
+      if (user) restoreFromServer()
+
       if (!isPermanent(user)) {
         if (!user) reportedAuthRef.current = null // signed out; report next one
         return
@@ -155,6 +188,8 @@ export default function App() {
     }))
     track(EV.ONBOARDING_COMPLETED, { interests, interest_count: interests.length })
     setPersonProps({ interests, interest_count: interests.length })
+    syncInterests(interests)
+    syncScores(scores)
   }
 
   // ── Edit interests later (keeps learned scores; only bonuses new picks) ──
@@ -175,6 +210,8 @@ export default function App() {
       removed_count: removed.length,
     })
     setPersonProps({ interests, interest_count: interests.length })
+    syncInterests(interests)
+    syncScores(nextScores)
   }
 
   // ── Draw the next weighted, unseen card ─────────────────────
@@ -206,6 +243,11 @@ export default function App() {
       method, // 'gesture' | 'button'
       swipe_index: swipeIndex,
     })
+
+    // Write through to the server. Not awaited — R2: a swipe never waits on
+    // the network, and by here the card has already left the screen.
+    syncSwipe({ cardId: card.id, action, surface: 'feed' })
+    syncScores(nextScores)
   }, [])
 
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
@@ -229,6 +271,7 @@ export default function App() {
         source,
         kept_count: state.kept.length - 1,
       })
+      syncSave({ cardId: card.id, saved: false })
       return 'removed'
     }
 
@@ -280,6 +323,12 @@ export default function App() {
       source,
       kept_count: newCount,
     })
+
+    syncSave({ cardId: card.id, saved: true })
+    syncScores(nextScores)
+    // A feed save auto-swipes right (R4), so it is a swipe row too — without
+    // this the Kept pile and the swipe history would disagree about the card.
+    if (source === 'feed') syncSwipe({ cardId: card.id, action: 'interested', surface: 'feed' })
     return 'saved'
   }
 
