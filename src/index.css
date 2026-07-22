@@ -1362,3 +1362,23 @@ button {
   color: var(--text-faint, #8b8b95);
   margin-top: 2px;
 }
+
+/* ── Locked Curio+ controls ──────────────────────────────────
+   Legible, not loud. A locked control should read as "this
+   exists, it isn't yours yet" — dimmed and desaturated rather
+   than hidden, so the boundary is known before it's hit (NG3). */
+.round.locked,
+.reply-btn.locked {
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+.round.locked:disabled {
+  opacity: 0.2;
+}
+.round.locked:not(:disabled):active,
+.reply-btn.locked:active {
+  transform: scale(0.94);
+}
+.reply-btn.locked {
+  font-size: 12px;
+}

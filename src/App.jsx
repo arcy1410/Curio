@@ -258,6 +258,25 @@ export default function App() {
     syncScores(nextScores)
   }, [])
 
+  // ── Locked Curio+ controls (R6 nested reply, R3 swipe undo) ──
+  //
+  // These are visible and tappable but never do the thing. That is the point:
+  // a lock the user can see before they need it is a legible boundary, where
+  // one that appears only at the moment of need reads as a trap (NG3).
+  //
+  // `feature` is what makes the paywall measurable — without it every locked
+  // control collapses into one undifferentiated paywall_clicked count and we
+  // cannot tell which lock actually drives intent.
+  const lockedFeature = useCallback((feature, message) => {
+    haptic.error()
+    track(EV.PAYWALL_CLICKED, {
+      feature,
+      swipes: statsRef.current.swipes,
+      kept: statsRef.current.kept,
+    })
+    setToast(message)
+  }, [])
+
   // ── R5: a Discover read retires the card from the feed ──────
   //
   // Reading NEVER scores — only Save does (+3). This marks the card seen and
@@ -465,6 +484,7 @@ export default function App() {
             cardsReady={cardsReady}
             gated={gated}
             onGateHit={hitGate}
+            onLockedUndo={() => lockedFeature('swipe_undo', 'Undo is a Curio+ feature')}
           />
         )}
         {tab === 'discover' && (
@@ -551,6 +571,9 @@ export default function App() {
           card={commentsCard}
           userComments={state.comments[commentsCard.id]}
           onAdd={stashCommentLocally}
+          onLockedReply={() =>
+            lockedFeature('nested_reply', 'Deeper threads are Curio+')
+          }
           onClose={() => {
             setCommentsCard(null)
             refreshCommentCounts()

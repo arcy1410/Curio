@@ -30,6 +30,7 @@ export default function Feed({
   cardsReady = true,
   gated = false, // R9: swipe-actions blocked until they sign in
   onGateHit = () => {},
+  onLockedUndo = () => {},
 }) {
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
@@ -256,6 +257,18 @@ export default function Feed({
         {deck.length > 0 && (
           <>
             <div className="actions">
+              {/* Swipe undo is Curio+ (R3). Visible and tappable from the
+                  start, so the escape hatch is a known boundary rather than
+                  something discovered at the worst possible moment — right
+                  after a mis-swipe. It never undoes anything in this release. */}
+              <button
+                className="round small locked"
+                onClick={onLockedUndo}
+                aria-label="Undo last swipe — Curio+"
+                disabled={swipeCount === 0}
+              >
+                🔒↩
+              </button>
               <button className="round pass" onClick={() => trigger('pass')} aria-label="Pass">
                 ✕
               </button>

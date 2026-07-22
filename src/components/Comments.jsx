@@ -31,7 +31,7 @@ function organise(all) {
   return { tops, repliesOf, count: all.length }
 }
 
-export default function Comments({ card, userComments, onAdd, onClose }) {
+export default function Comments({ card, userComments, onAdd, onClose, onLockedReply }) {
   const [text, setText] = useState('')
   const [replyTo, setReplyTo] = useState(null) // { id, author }
   const [err, setErr] = useState('')
@@ -151,12 +151,23 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
               {repliesOf(c.id).length > 0 && (
                 <div className="replies">
                   {repliesOf(c.id).map((r) => (
-                    <div className="comment" key={r.id} style={{ marginBottom: 0 }}>
+                    <div className="comment reply" key={r.id} style={{ marginBottom: 0 }}>
                       <div>
                         <span className="who">{r.author}</span>
                         <span className="when">{timeAgo(r.minsAgo)}</span>
                       </div>
                       <div className="text">{r.text}</div>
+                      {/* R6: visible, tappable, never opens a composer. The
+                          database rejects depth 2 as well (reject_nested_reply),
+                          so this is a legible boundary rather than the only
+                          thing standing between a user and a nested reply. */}
+                      <button
+                        className="reply-btn locked"
+                        onClick={() => onLockedReply?.()}
+                        aria-label="Reply to reply — Curio+"
+                      >
+                        🔒 Reply
+                      </button>
                     </div>
                   ))}
                 </div>
