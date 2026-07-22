@@ -6,8 +6,8 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** Goals + Non-Goals + Narratives + Requirements + Error Scenarios
-(§1–5) complete · Telemetry onward: in progress
+**Status:** §1–6 complete (Goals · Non-Goals · Narratives · Requirements ·
+Error Scenarios · Telemetry) · Acceptance Criteria onward: in progress
 
 ---
 
@@ -708,11 +708,68 @@ rate, separate from list-open counts.
 scenario's purpose is making the *correct* implementation explicit enough
 that "mark seen on any visibility" never ships by default.
 
-## 6. Telemetry — *pending*
+## 6. Telemetry
 
-(The event taxonomy is already implemented in `src/lib/analytics.js`; this
-section will formalize it as outcome / behavioural / quality / diagnostic /
-guardrail telemetry.)
+Every event specced in §4–5, organized into the five categories (outcome /
+behavioural / quality / diagnostic / guardrail). The core taxonomy is
+already live in `src/lib/analytics.js`; events introduced by R4–R10 are
+work items alongside their requirements. Privacy stance carries over
+unchanged: autocapture off, session recording off, DNT honoured, no
+free-form user text ever sent.
+
+### Outcome — did the customer succeed?
+
+| Event | Succeeds at |
+|---|---|
+| `onboarding_completed` | finishing onboarding |
+| `signup_completed` / `signin_completed` | authenticating (R9) |
+| `state_merge_succeeded {retries}` | keeping progress through signup (E2) |
+| `comment_posted` | getting a comment through the filter |
+| `discovery_card_read {card_id, dwell_ms}` | actually reading (30s dwell, R5/E4) |
+| `card_saved {source, kept_count}` | finding something worth keeping |
+
+### Behavioural — what did the customer do?
+
+`app_opened` · `onboarding_started` · `onboarding_topic_toggled` ·
+`card_viewed` · `card_swiped {action, method, topic, swipe_index}` ·
+`card_unsaved` · `source_link_clicked` · `tuning_meter_toggled` ·
+`discovery_opened` · `discovery_topic_selected` ·
+`discovery_subtopic_filtered` · `comments_opened` · `kept_pile_viewed` ·
+`tab_changed` · `paywall_viewed` · `paywall_clicked {feature}` ·
+`interests_edit_started` · `interests_updated {added, removed}` ·
+`feed_replayed` · `migration_notice_shown` / `_dismissed` ·
+`signup_gate_shown {swipe_count}` · `signup_abandoned`
+
+### Quality — did the system perform correctly?
+
+- **R10 pipeline run log:** generated / passed / flagged-retried /
+  discarded counts + per-card cost. *Note: this is backend/operational
+  telemetry (a pipeline-run table), a separate surface from PostHog product
+  analytics — it needs its own operator view, not folding into user
+  analytics.*
+- `discovery_card_read` dwell distribution — is content engaging enough to
+  hold 30s, not merely present?
+- `state_merge_started` → `_succeeded` / `_failed` ratio — is the merge
+  mechanism reliable?
+
+### Diagnostic — why did it fail?
+
+| Event | Diagnostic payload |
+|---|---|
+| `signup_gate_error {reason, swipe_count}` | why the gate blocked entry (E1) |
+| `state_merge_failed {attempt, reason}` | why progress didn't carry (E2) |
+| `comment_rejected {reason}` | why a comment was blocked — never the text |
+| `feed_exhausted {cards_seen, hours_since_last_new_card}` | "read everything" vs. "pipeline stalled" (E3) |
+| R10 discard reasons (Haiku flag categories) | why generated cards never shipped |
+
+### Guardrail — what might the product be damaging?
+
+| Guardrail | Measured via |
+|---|---|
+| **Session length** (doom-scroll watch, NG3) | **Gap, kept deliberately — not built yet.** When built: capture session start/end with duration as a first-class event, not inferred gaps — one signal serving two consumers: the NG3 guardrail *and* the basis for daily/monthly average-usage (DAU/MAU-style) comparisons later. Design once for both. |
+| **Comment toxicity rate** | `comment_rejected` rate — **flagged as under-measured and left as-is:** the word-list filter's rejection rate is a proxy; toxicity that passes the filter is invisible to it. The named guardrail is not fully instrumented in this release. |
+| **Filter-bubble / top-topic share** (G2, G5) | Aggregation over `card_viewed` / `discovery_topic_selected` topic distributions vs. baseline — a query, not a new event. |
+| **Paywall pressure** (over-gating check) | `save_limit_reached` rate + `paywall_clicked {feature}` — the same numbers serve monetization analysis and guard against gating too hard. |
 
 ## 7. Acceptance Criteria — *pending*
 
