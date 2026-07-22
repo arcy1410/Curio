@@ -324,7 +324,21 @@ swipes disabled. Each card recorded at most once (double-count guard).
 **Exceptions:** if the swipe animation fails, the action is still recorded
 and the deck still advances — logic never depends on animation. **Known gap,
 flagged:** no undo; a mis-swipe is unrecoverable in the feed (mechanism
-behind Rohan's lost card in N2) — §9 prioritization candidate.
+behind Rohan's lost card in N2).
+
+**Undo is a Curio+ feature, deferred past this release.** Shown in the feed
+as a visible-but-locked control, the same treatment as unlimited saves and
+nested replies — a user can see the escape hatch exists before they need it,
+which is what makes the paywall legible rather than a surprise.
+
+Own the tension honestly (NG3): undo is the remedy for a frustration the
+swipe mechanic itself creates, and charging for the remedy is the sharper
+version of the dark-pattern question this product has to answer. The
+defence is that the free tier is not made worse to sell it — nothing about
+the base loop changes, mis-swipes were already unrecoverable, and the card
+returns in Discover regardless, so no content is actually lost. If that
+defence stops being true, this decision should be revisited before the
+paywall is.
 
 ### R4 — Save to Kept: save auto-swipes right
 
@@ -943,7 +957,7 @@ items this spec created.
 | 6 | New-topic parity boost (R7) | 5 | 2 | 1 | 8 | 2 | **4.0** |
 | 7 | Locked nested-reply (R6) | 3 | 1 | 2 | 6 | 2 | **3.0** |
 | 8 | 30s dwell marking (R5) | 3 | 2 | 3 | 8 | 3 | **2.7** |
-| 9 | Swipe undo (R3 gap) | 5 | 2 | 1 | 8 | 3 | **2.7** |
+| 9 | ~~Swipe undo (R3 gap)~~ → Curio+, deferred | — | — | — | — | — | **cut** |
 | 10 | Auth gate + merge (R9) | 13 | 8 | 13 | 34 | 13 | **2.6** |
 
 **Non-obvious scores, reasoned:**
@@ -967,3 +981,13 @@ items this spec created.
 **Build order:** quick wins (items 1–4, roughly one week together) →
 pipeline (R10) → parity boost / locked reply / dwell alongside → auth gate
 (R9) last, once content justifies it.
+
+**Status, 2026-07-22.** Items 1–5 and 10 shipped. R9 moved earlier than
+planned, not later: its "wait until content justifies it" reasoning stopped
+applying the moment R10 made the library grow on demand, and shared comments
+needed an owner for every row regardless. Swipe undo is cut from this
+release (Curio+, above). Remaining: parity boost (R7), locked nested reply
+(R6), 30s dwell (R5) — plus one item this table never had, because it only
+became visible once identity existed: **swipes, saves and topic scores are
+still device-local.** That is now the largest gap, since it is what makes a
+second device work and what puts behaviour in the metrics dashboard.
