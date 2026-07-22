@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { usePostHog } from '@posthog/react'
 import TinderCard from 'react-tinder-card'
 import Card from './Card.jsx'
 import TuningMeter from './TuningMeter.jsx'
@@ -27,6 +28,7 @@ export default function Feed({
   onToggleSave,
   isSaved,
 }) {
+  const posthog = usePostHog()
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
@@ -132,7 +134,10 @@ export default function Feed({
                 You&apos;ve been through every card in this prototype. Start over to swipe
                 the deck again — your feed keeps the taste it learned.
               </p>
-              <button className="btn-ghost" onClick={onReplay}>
+              <button className="btn-ghost" onClick={() => {
+                posthog?.capture('deck_replayed')
+                onReplay()
+              }}>
                 Swipe again
               </button>
             </div>

@@ -1,4 +1,15 @@
 // Thin localStorage persistence layer for the prototype.
+// Separate key so it survives resets.
+const USER_ID_KEY = 'curio.userId'
+
+export function getUserId() {
+  let id = localStorage.getItem(USER_ID_KEY)
+  if (!id) {
+    id = `curio_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`
+    localStorage.setItem(USER_ID_KEY, id)
+  }
+  return id
+}
 // In production this state lives in Supabase (users, swipes, topic_scores,
 // comments). Keeping the shape close to those tables makes the swap easy.
 

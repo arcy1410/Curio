@@ -1,3 +1,4 @@
+import { usePostHog } from '@posthog/react'
 import { topicName, topicEmoji, topicColor } from '../data/topics.js'
 
 function hostOf(url) {
@@ -11,6 +12,7 @@ function hostOf(url) {
 // Presentational card. `swipeDir` (‘interested’ | ‘pass’ | null) drives the
 // stamp overlay while a drag is in progress.
 export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 }) {
+  const posthog = usePostHog()
   return (
     <article className="card" style={{ '--topic': topicColor(card.topic) }}>
       <div className="tag">
@@ -29,7 +31,10 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 
           href={card.source_url}
           target="_blank"
           rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            posthog?.capture('card_source_clicked', { card_id: card.id, card_topic: card.topic })
+          }}
         >
           <span>🔗</span>
           <span className="host">
