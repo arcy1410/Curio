@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { DEMO_COMMENTS } from '../data/demoComments.js'
 import { checkComment } from '../lib/profanity.js'
 import { haptic } from '../lib/haptics.js'
+import { track, EV } from '../lib/analytics.js'
 
 function timeAgo(mins) {
   if (mins < 1) return 'just now'
@@ -39,11 +40,18 @@ export default function Comments({ card, userComments, onAdd, onClose }) {
     [card.id, userComments]
   )
 
+  useEffect(() => {
+    track(EV.COMMENTS_OPENED, { card_id: card.id, topic: card.topic, comment_count: count })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id])
+
   function submit() {
     const res = checkComment(text)
     if (!res.ok) {
       haptic.error()
       setErr(res.reason)
+      // Guardrail telemetry: the reason only — never the rejected text.
+      track(EV.COMMENT_REJECTED, { card_id: card.id, reason: res.reason })
       return
     }
     haptic.success()

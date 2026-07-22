@@ -10,6 +10,7 @@ import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
+import { track, setPersonProps, resetAnalytics, EV } from './lib/analytics.js'
 
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]))
 
@@ -49,16 +50,28 @@ export default function App() {
       kept: [],
       swipes: [],
     }))
+    track(EV.ONBOARDING_COMPLETED, { interests, interest_count: interests.length })
+    setPersonProps({ interests, interest_count: interests.length })
   }
 
   // ── Edit interests later (keeps learned scores; only bonuses new picks) ──
   function saveInterests(interests) {
     const added = interests.filter((id) => !state.interests.includes(id))
+    const removed = state.interests.filter((id) => !interests.includes(id))
     const nextScores = addInterestBonus(scoresRef.current, added)
     scoresRef.current = nextScores
     setState((s) => ({ ...s, interests, topicScores: nextScores }))
     setEditingInterests(false)
     setToast('Interests updated')
+    track(EV.INTERESTS_UPDATED, {
+      interests,
+      interest_count: interests.length,
+      added,
+      removed,
+      added_count: added.length,
+      removed_count: removed.length,
+    })
+    setPersonProps({ interests, interest_count: interests.length })
   }
 
   // ── Draw the next weighted, unseen card ─────────────────────
@@ -69,7 +82,8 @@ export default function App() {
   }, [])
 
   // ── Record a swipe (interested | pass) — swiping no longer saves ──
-  const recordSwipe = useCallback((card, action) => {
+  const recordSwipe = useCallback((card, action, method = 'gesture') => {
+    const swipeIndex = seenRef.current.size // how many cards deep the user is
     const nextScores = applySwipe(scoresRef.current, card.topic, action)
     scoresRef.current = nextScores
     seenRef.current = new Set(seenRef.current).add(card.id)
@@ -80,32 +94,55 @@ export default function App() {
       seen: [...s.seen, card.id],
       swipes: [...s.swipes, { cardId: card.id, action, ts: Date.now() }],
     }))
+
+    track(EV.CARD_SWIPED, {
+      card_id: card.id,
+      topic: card.topic,
+      subtopic: card.subtopic,
+      action, // 'interested' | 'pass'
+      method, // 'gesture' | 'button'
+      swipe_index: swipeIndex,
+    })
   }, [])
 
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
   const isSaved = (cardId) => state.kept.includes(cardId)
-  function toggleSave(card) {
+  function toggleSave(card, source = 'unknown') {
     const already = state.kept.includes(card.id)
     setState((s) => ({
       ...s,
       kept: already ? s.kept.filter((id) => id !== card.id) : [card.id, ...s.kept],
     }))
     setToast(already ? 'Removed from Kept' : 'Saved ♥')
+
+    track(already ? EV.CARD_UNSAVED : EV.CARD_SAVED, {
+      card_id: card.id,
+      topic: card.topic,
+      subtopic: card.subtopic,
+      source, // 'feed' | 'discovery' | 'kept'
+      kept_count: already ? state.kept.length - 1 : state.kept.length + 1,
+    })
   }
 
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
   function replay() {
+    track(EV.FEED_REPLAYED, { swipes_so_far: state.swipes.length })
     seenRef.current = new Set()
     setState((s) => ({ ...s, seen: [] }))
   }
 
   function hardReset() {
+    track(EV.PROTOTYPE_RESET, {
+      swipes: state.swipes.length,
+      kept: state.kept.length,
+    })
     resetState()
     const fresh = loadState()
     scoresRef.current = fresh.topicScores
     seenRef.current = new Set()
     setState(fresh)
     setTab('feed')
+    resetAnalytics()
   }
 
   // ── Comments ────────────────────────────────────────────────
@@ -116,6 +153,13 @@ export default function App() {
       ...s,
       comments: { ...s.comments, [cardId]: [...(s.comments[cardId] || []), entry] },
     }))
+    // Never send the comment text itself — only structural facts.
+    track(EV.COMMENT_POSTED, {
+      card_id: cardId,
+      topic: commentsCard.topic,
+      is_reply: Boolean(parentId),
+      length_bucket: text.length < 40 ? 'short' : text.length < 140 ? 'medium' : 'long',
+    })
   }
 
   const commentCountFor = useCallback(
@@ -173,7 +217,7 @@ export default function App() {
             swipeCount={state.swipes.length}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
-            onToggleSave={toggleSave}
+            onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
           />
         )}
@@ -181,7 +225,7 @@ export default function App() {
           <Discovery
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
-            onToggleSave={toggleSave}
+            onToggleSave={(card) => toggleSave(card, 'discovery')}
             isSaved={isSaved}
           />
         )}
@@ -190,7 +234,7 @@ export default function App() {
             keptCards={keptCards}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
-            onToggleSave={toggleSave}
+            onToggleSave={(card) => toggleSave(card, 'kept')}
           />
         )}
         {tab === 'profile' && (
@@ -199,10 +243,15 @@ export default function App() {
             onReset={hardReset}
             onEditInterests={() => {
               haptic.tap()
+              track(EV.INTERESTS_EDIT_STARTED, { interest_count: state.interests.length })
               setEditingInterests(true)
             }}
             onUpgradeAttempt={() => {
               haptic.error()
+              track(EV.PAYWALL_CLICKED, {
+                swipes: state.swipes.length,
+                kept: state.kept.length,
+              })
               setToast('Curio+ is a prototype — no payment taken')
             }}
           />
@@ -221,6 +270,7 @@ export default function App() {
             className={`navitem ${tab === item.id ? 'on' : ''}`}
             onClick={() => {
               haptic.nav()
+              if (item.id !== tab) track(EV.TAB_CHANGED, { from: tab, to: item.id })
               setTab(item.id)
             }}
           >

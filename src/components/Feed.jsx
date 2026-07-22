@@ -3,6 +3,7 @@ import TinderCard from 'react-tinder-card'
 import Card from './Card.jsx'
 import TuningMeter from './TuningMeter.jsx'
 import { haptic } from '../lib/haptics.js'
+import { track, EV } from '../lib/analytics.js'
 
 const DECK_SIZE = 3
 const BURST_EMOJI = ['✨', '💚', '🌟', '⭐', '💫', '🎉']
@@ -33,6 +34,8 @@ export default function Feed({
   const [burst, setBurst] = useState(null) // { key, parts } emoji burst on save
   const childRefs = useRef({})
   const swiped = useRef(new Set()) // guard against double-recording
+  const methodRef = useRef('gesture') // how the current swipe was initiated
+  const viewedRef = useRef(new Set()) // fire card_viewed once per card
 
   function fireBurst() {
     const parts = Array.from({ length: 6 }, (_, i) => ({
@@ -72,7 +75,8 @@ export default function Feed({
     setDragDir(null)
     if (action === 'interested') haptic.keep()
     else haptic.pass()
-    onSwipe(card, action)
+    onSwipe(card, action, methodRef.current)
+    methodRef.current = 'gesture' // reset; buttons set it explicitly
   }
 
   function handleLeftScreen(card) {
@@ -88,6 +92,7 @@ export default function Feed({
   async function trigger(action) {
     const top = deck[0]
     if (!top) return
+    methodRef.current = 'button'
     const ref = childRefs.current[top.id]
     const dir = action === 'pass' ? 'left' : 'right'
     if (ref?.current) {
@@ -117,6 +122,27 @@ export default function Feed({
 
   const topId = deck[0]?.id
   const topSaved = topId ? isSaved(topId) : false
+
+  // Fire card_viewed once when a card reaches the top of the deck.
+  useEffect(() => {
+    const top = deck[0]
+    if (!top || viewedRef.current.has(top.id)) return
+    viewedRef.current.add(top.id)
+    track(EV.CARD_VIEWED, {
+      card_id: top.id,
+      topic: top.topic,
+      subtopic: top.subtopic,
+      verified: top.verified,
+      position: viewedRef.current.size - 1,
+    })
+  }, [topId, deck])
+
+  // The user reached the end of the available deck.
+  useEffect(() => {
+    if (ready && deck.length === 0) {
+      track(EV.FEED_EXHAUSTED, { cards_seen: viewedRef.current.size })
+    }
+  }, [ready, deck.length])
 
   return (
     <div>

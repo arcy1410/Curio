@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { TOPICS } from '../data/topics.js'
 import { topicDistribution } from '../lib/scoring.js'
 import { haptic } from '../lib/haptics.js'
+import { track, EV } from '../lib/analytics.js'
 
 // Profile + the mocked Curio+ paywall. No real payment processor — the locked
 // state is a deliberate conversion-nudge pattern, shown even though nothing is
@@ -10,6 +12,13 @@ export default function Profile({ state, onReset, onUpgradeAttempt, onEditIntere
   const keepCount = state.kept.length
   const dist = topicDistribution(state.topicScores)
   const top3 = [...TOPICS].sort((a, b) => (dist[b.id] ?? 0) - (dist[a.id] ?? 0)).slice(0, 3)
+
+  // The locked Curio+ block is on this screen, so reaching it counts as a
+  // paywall impression — the denominator for paywall conversion.
+  useEffect(() => {
+    track(EV.PAYWALL_VIEWED, { swipes: swipeCount, kept: keepCount })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div>

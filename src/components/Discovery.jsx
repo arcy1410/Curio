@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TOPICS, topicColor, topicEmoji, topicName } from '../data/topics.js'
 import { CARDS } from '../data/cards.js'
 import { haptic } from '../lib/haptics.js'
+import { track, EV } from '../lib/analytics.js'
 
 function hostOf(url) {
   try {
@@ -16,6 +17,10 @@ function hostOf(url) {
 export default function Discovery({ onOpenComments, commentCountFor, onToggleSave, isSaved }) {
   const [topicId, setTopicId] = useState(null)
   const [sub, setSub] = useState(null)
+
+  useEffect(() => {
+    track(EV.DISCOVERY_OPENED)
+  }, [])
 
   // ── Topic chooser ──
   if (!topicId) {
@@ -35,6 +40,7 @@ export default function Discovery({ onOpenComments, commentCountFor, onToggleSav
                 style={{ '--topic-c': t.color }}
                 onClick={() => {
                   haptic.tap()
+                  track(EV.DISCOVERY_TOPIC_SELECTED, { topic: t.id, card_count: count })
                   setTopicId(t.id)
                   setSub(null)
                 }}
@@ -97,6 +103,7 @@ export default function Discovery({ onOpenComments, commentCountFor, onToggleSav
             className={`chip ${sub === s ? 'on' : ''}`}
             onClick={() => {
               haptic.tap()
+              track(EV.DISCOVERY_SUBTOPIC_FILTERED, { topic: topicId, subtopic: s })
               setSub(s)
             }}
           >

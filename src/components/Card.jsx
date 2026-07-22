@@ -1,4 +1,5 @@
 import { topicName, topicEmoji, topicColor } from '../data/topics.js'
+import { track, EV } from '../lib/analytics.js'
 
 function hostOf(url) {
   try {
@@ -29,7 +30,15 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0 
           href={card.source_url}
           target="_blank"
           rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            // Engagement with the source = engagement with the trust mechanism.
+            track(EV.SOURCE_LINK_CLICKED, {
+              card_id: card.id,
+              topic: card.topic,
+              host: hostOf(card.source_url),
+            })
+          }}
         >
           <span>🔗</span>
           <span className="host">

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { TOPICS } from '../data/topics.js'
 import { topicDistribution, topTopic } from '../lib/scoring.js'
+import { track, EV } from '../lib/analytics.js'
 
 // The visible personalization signal. After ~10–15 swipes the leading topic
 // and the bars should have shifted noticeably — this is the whole point.
@@ -43,7 +44,13 @@ export default function TuningMeter({ scores, swipeCount }) {
         </div>
       )}
 
-      <button className="expand" onClick={() => setOpen((o) => !o)}>
+      <button
+        className="expand"
+        onClick={() => {
+          track(EV.TUNING_METER_TOGGLED, { opening: !open, swipe_count: swipeCount, lead_topic: lead })
+          setOpen((o) => !o)
+        }}
+      >
         {open ? 'Hide the mix' : 'See how your feed is weighted'}
       </button>
     </div>

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { TOPICS } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
+import { track, EV } from '../lib/analytics.js'
 
 // For the prototype the topic list is small (4), so we let users pick any
 // number and just require at least 2. The pitch describes 10–15 interests
@@ -12,8 +13,16 @@ export default function Onboarding({ onDone, mode = 'onboard', initialSelected =
   const [picked, setPicked] = useState(() => new Set(initialSelected))
   const isEdit = mode === 'edit'
 
+  // Funnel entry — the denominator for onboarding completion.
+  useEffect(() => {
+    if (!isEdit) track(EV.ONBOARDING_STARTED)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   function toggle(id) {
     haptic.select()
+    // Track outside the updater — StrictMode double-invokes updaters in dev.
+    track(EV.ONBOARDING_TOPIC_TOGGLED, { topic: id, selecting: !picked.has(id), mode })
     setPicked((prev) => {
       const next = new Set(prev)
       next.has(id) ? next.delete(id) : next.add(id)

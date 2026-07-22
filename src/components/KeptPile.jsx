@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { topicName, topicEmoji, topicColor } from '../data/topics.js'
+import { track, EV } from '../lib/analytics.js'
 
 function hostOf(url) {
   try {
@@ -10,6 +12,11 @@ function hostOf(url) {
 
 // The saved pile — everything the user explicitly saved, most-recent first.
 export default function KeptPile({ keptCards, onOpenComments, commentCountFor, onToggleSave }) {
+  useEffect(() => {
+    track(EV.KEPT_PILE_VIEWED, { kept_count: keptCards.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <div>
       <div className="kept-head">
