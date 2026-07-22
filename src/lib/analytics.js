@@ -70,6 +70,24 @@ export function setPersonProps(props = {}) {
   }
 }
 
+/**
+ * Bind the anonymous visitor to their account (R9).
+ *
+ * This is what makes the signup funnel one funnel: PostHog aliases everything
+ * the person did BEFORE signing in — onboarding, their first seven swipes,
+ * the gate itself — onto the account, so "how many people who hit the wall
+ * signed in" is answerable. Without it, every user appears twice and the
+ * conversion rate is unmeasurable.
+ */
+export function identifyUser(id, props = {}) {
+  if (!enabled || !id) return
+  try {
+    posthog.identify(id, props)
+  } catch {
+    // ignore
+  }
+}
+
 // Clear identity + stored props (used by the prototype reset).
 export function resetAnalytics() {
   if (!enabled) return
@@ -130,6 +148,13 @@ export const EV = {
   // pile + navigation
   KEPT_PILE_VIEWED: 'kept_pile_viewed',
   TAB_CHANGED: 'tab_changed',
+
+  // auth gate (R9) — the funnel PostHog stitches across the identify() call
+  SIGNUP_GATE_SHOWN: 'signup_gate_shown', // {swipe_count} — first block
+  SIGNUP_COMPLETED: 'signup_completed', // first sign-in for this account
+  SIGNIN_COMPLETED: 'signin_completed', // returning account
+  SIGNUP_ABANDONED: 'signup_abandoned', // wall dismissed → read-only
+  SIGNUP_FAILED: 'signup_failed', // reason only, never credentials
 
   // monetization
   PAYWALL_VIEWED: 'paywall_viewed',

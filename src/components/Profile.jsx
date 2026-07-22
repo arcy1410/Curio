@@ -7,7 +7,16 @@ import { track, EV } from '../lib/analytics.js'
 // Profile + the mocked Curio+ paywall. No real payment processor — the locked
 // state is a deliberate conversion-nudge pattern, shown even though nothing is
 // wired up (per the brief).
-export default function Profile({ state, onReset, onUpgradeAttempt, onEditInterests }) {
+export default function Profile({
+  state,
+  onReset,
+  onUpgradeAttempt,
+  onEditInterests,
+  authUser,
+  signedIn,
+  onSignIn,
+  onSignOut,
+}) {
   const swipeCount = state.swipes.length
   const keepCount = state.kept.length
   const dist = topicDistribution(state.topicScores)
@@ -25,6 +34,24 @@ export default function Profile({ state, onReset, onUpgradeAttempt, onEditIntere
       <div className="kept-head">
         <h1>Your Curio</h1>
         <p>A quiet record of what you&apos;re learning.</p>
+      </div>
+
+      {/* Account. Someone who dismissed the wall needs a way back to sign-in
+          that isn't "swipe until you're blocked again". */}
+      <div className="account-row">
+        <div>
+          <div className="who">
+            {signedIn ? authUser?.email || 'Signed in' : 'Not signed in'}
+          </div>
+          <div className="sub">
+            {signedIn
+              ? 'Your feed and Kept pile follow you to any device.'
+              : 'Sign in to keep your swipes and Kept pile.'}
+          </div>
+        </div>
+        <button className="btn-ghost" onClick={signedIn ? onSignOut : onSignIn}>
+          {signedIn ? 'Sign out' : 'Sign in'}
+        </button>
       </div>
 
       {/* Stats */}

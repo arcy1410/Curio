@@ -50,6 +50,11 @@ export function getClient() {
   return clientPromise
 }
 
+/** A user who has actually signed in, as opposed to an anonymous shell. */
+export function isPermanent(user) {
+  return Boolean(user && user.is_anonymous === false)
+}
+
 let sessionPromise = null
 
 /**
@@ -78,4 +83,69 @@ export function ensureUser() {
     })()
   }
   return sessionPromise
+}
+
+/**
+ * Sign in with Google, keeping the user's history.
+ *
+ * The distinction that matters: signInWithOAuth on an anonymous session
+ * creates a NEW user and orphans everything the old one did — swipes, saves
+ * and comments stay in the database but owned by an id nobody holds any more.
+ * linkIdentity attaches Google to the EXISTING row, so the id survives and
+ * there is nothing to migrate.
+ *
+ * That is the whole reason this design has no merge step, and it depends on
+ * "Manual Linking" being enabled in the Supabase dashboard. If it isn't,
+ * linkIdentity fails and we deliberately do NOT fall back to signInWithOAuth:
+ * silently orphaning someone's Kept pile is far worse than a failed sign-in
+ * they can retry.
+ */
+export async function signInWithGoogle() {
+  const supabase = await getClient()
+  if (!supabase) return { error: 'Sign-in is unavailable right now.' }
+
+  const options = { provider: 'google', options: { redirectTo: window.location.origin } }
+
+  try {
+    const user = await ensureUser()
+    const { error } =
+      user && user.is_anonymous
+        ? await supabase.auth.linkIdentity(options)
+        : await supabase.auth.signInWithOAuth(options)
+    if (error) throw error
+    return {} // the browser is navigating to Google; nothing after this runs
+  } catch (error) {
+    const raw = `${error?.message ?? ''}`
+    if (/manual linking|not enabled/i.test(raw)) {
+      return { error: 'Sign-in is misconfigured — please tell us.' }
+    }
+    return { error: 'Could not reach Google sign-in. Try again.' }
+  }
+}
+
+/** Sign out, then drop the memoised session so the next write starts clean. */
+export async function signOut() {
+  const supabase = await getClient()
+  if (!supabase) return
+  await supabase.auth.signOut()
+  sessionPromise = null
+}
+
+/**
+ * Subscribe to sign-in / sign-out. Returns an unsubscribe function.
+ * Fires on load too, which is how the app picks up the session Supabase
+ * restores from the OAuth redirect.
+ */
+export function onAuthChange(handler) {
+  let unsub = () => {}
+  getClient().then((supabase) => {
+    if (!supabase) return
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null
+      if (user) sessionPromise = Promise.resolve(user)
+      handler(user)
+    })
+    unsub = () => data?.subscription?.unsubscribe()
+  })
+  return () => unsub()
 }

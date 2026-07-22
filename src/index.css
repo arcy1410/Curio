@@ -1297,3 +1297,68 @@ button {
   color: var(--ink-faint);
   margin-bottom: 16px;
 }
+
+/* ── R9 auth wall ────────────────────────────────────────────
+   Deliberately quiet: no countdown, no urgency colour, no
+   pulsing CTA. The wall is a conversion moment we own as one
+   (NG3), so it persuades by being clear, not by being loud. */
+.auth-wall {
+  padding: 0 22px 28px;
+  text-align: left;
+}
+.auth-title {
+  font-family: var(--serif, Georgia, serif);
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 6px 0 12px;
+}
+.auth-body {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-dim, #b9b9c2);
+  margin: 0 0 10px;
+}
+.auth-body.dim {
+  color: var(--text-faint, #8b8b95);
+}
+.auth-wall .err {
+  font-size: 13px;
+  color: var(--pass);
+  font-weight: 600;
+  margin: 4px 0 10px;
+}
+.auth-google {
+  width: 100%;
+  margin-top: 14px;
+}
+.auth-later {
+  width: 100%;
+  margin-top: 10px;
+}
+.auth-fine {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint, #8b8b95);
+  margin: 16px 0 0;
+}
+
+/* Signed-in state on the Profile tab. */
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 14px;
+}
+.account-row .who {
+  font-size: 14px;
+  font-weight: 600;
+}
+.account-row .sub {
+  font-size: 12px;
+  color: var(--text-faint, #8b8b95);
+  margin-top: 2px;
+}

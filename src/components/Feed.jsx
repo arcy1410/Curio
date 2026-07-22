@@ -28,6 +28,8 @@ export default function Feed({
   onToggleSave,
   isSaved,
   cardsReady = true,
+  gated = false, // R9: swipe-actions blocked until they sign in
+  onGateHit = () => {},
 }) {
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
@@ -106,6 +108,7 @@ export default function Feed({
   async function trigger(action) {
     const top = deck[0]
     if (!top) return
+    if (gated) return onGateHit() // R9: block the action, keep the card
     methodRef.current = 'button'
     const ref = childRefs.current[top.id]
     const dir = action === 'pass' ? 'left' : 'right'
@@ -127,6 +130,7 @@ export default function Feed({
   async function saveTop() {
     const top = deck[0]
     if (!top) return
+    if (gated) return onGateHit() // a save is a swipe-action too (R4/R9)
     const result = onToggleSave(top) // 'saved' | 'blocked' | 'removed'
     if (result === 'saved') {
       haptic.success()
@@ -203,12 +207,21 @@ export default function Feed({
                 ref={getRef(card.id)}
                 className="swipe"
                 key={card.id}
-                preventSwipe={['up', 'down']}
+                // Gated: the card physically cannot leave the screen, so the
+                // user keeps the card they were reading (R9) instead of losing
+                // it to a swipe that was never recorded.
+                preventSwipe={gated ? ['up', 'down', 'left', 'right'] : ['up', 'down']}
                 swipeRequirementType="position"
                 swipeThreshold={90}
                 onSwipe={(dir) => handleSwipe(card, dir)}
                 onCardLeftScreen={() => handleLeftScreen(card)}
-                onSwipeRequirementFulfilled={(dir) => isTop && setDragDir(dirToAction(dir))}
+                onSwipeRequirementFulfilled={(dir) => {
+                  if (!isTop) return
+                  // A gesture that WOULD have swiped is the clearest moment to
+                  // explain the wall — the intent is unambiguous.
+                  if (gated) return onGateHit()
+                  setDragDir(dirToAction(dir))
+                }}
                 onSwipeRequirementUnfulfilled={() => isTop && setDragDir(null)}
               >
                 <div

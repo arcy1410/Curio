@@ -7,11 +7,13 @@ import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { fetchCommentCounts } from './lib/comments.js'
+import { onAuthChange, isPermanent, signOut } from './lib/session.js'
+import AuthWall from './components/AuthWall.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
-import { track, setPersonProps, resetAnalytics, EV } from './lib/analytics.js'
+import { track, setPersonProps, resetAnalytics, identifyUser, EV } from './lib/analytics.js'
 
 export default function App() {
   const [state, setState] = useState(loadState)
@@ -31,6 +33,60 @@ export default function App() {
   // onboarding and lands straight on the feed — builds their whole deck from
   // SEED_CARDS before the real library arrives.
   const [cardsReady, setCardsReady] = useState(false)
+
+  // ── R9: identity + the swipe gate ───────────────────────────
+  const FREE_SWIPE_ACTIONS = 7
+  const [authUser, setAuthUser] = useState(null)
+  const [wallOpen, setWallOpen] = useState(false)
+  const signedIn = isPermanent(authUser)
+
+  // Which account we've already reported. onAuthStateChange fires on token
+  // refresh and tab focus too, not only on a real sign-in — without this guard
+  // a long session would emit signin_completed repeatedly and the gate's
+  // conversion rate would climb above 100%.
+  const reportedAuthRef = useRef(null)
+  const statsRef = useRef({ swipes: 0, kept: 0 })
+  statsRef.current = { swipes: state.swipes.length, kept: state.kept.length }
+
+  useEffect(() => {
+    // Fires on load with any restored session — including the one Supabase
+    // rebuilds from the OAuth redirect — and again on sign-in/sign-out.
+    return onAuthChange((user) => {
+      setAuthUser(user)
+      if (!isPermanent(user)) {
+        if (!user) reportedAuthRef.current = null // signed out; report next one
+        return
+      }
+
+      setWallOpen(false)
+      // Stitch the pre-signup visitor onto the account so the gate funnel is
+      // one funnel rather than two disconnected people.
+      identifyUser(user.id, { auth_provider: user.app_metadata?.provider ?? 'unknown' })
+      if (reportedAuthRef.current !== user.id) {
+        reportedAuthRef.current = user.id
+        // Google is the only provider, and it returns the same identity for a
+        // returning user — so "new account" is judged on the account's age,
+        // not on which button was pressed.
+        const createdMs = Date.now() - new Date(user.created_at).getTime()
+        // From the ref, not from state: this callback is registered once, so
+        // its closure holds the counts as they were at mount.
+        track(createdMs < 60_000 ? EV.SIGNUP_COMPLETED : EV.SIGNIN_COMPLETED, {
+          swipe_count: statsRef.current.swipes,
+          kept_count: statsRef.current.kept,
+        })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // The gate opens on the 8th swipe-action; saves count as swipes (R4).
+  const gated = !signedIn && state.swipes.length >= FREE_SWIPE_ACTIONS
+
+  const hitGate = useCallback(() => {
+    setWallOpen(true)
+    track(EV.SIGNUP_GATE_SHOWN, { swipe_count: state.swipes.length })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.swipes.length])
 
   useEffect(() => {
     let cancelled = false
@@ -336,6 +392,8 @@ export default function App() {
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
             cardsReady={cardsReady}
+            gated={gated}
+            onGateHit={hitGate}
           />
         )}
         {tab === 'discover' && (
@@ -358,6 +416,14 @@ export default function App() {
         {tab === 'profile' && (
           <Profile
             state={state}
+            authUser={authUser}
+            signedIn={signedIn}
+            onSignIn={() => setWallOpen(true)}
+            onSignOut={async () => {
+              await signOut()
+              setAuthUser(null)
+              resetAnalytics() // don't attribute the next person to this account
+            }}
             onReset={hardReset}
             onEditInterests={() => {
               haptic.tap()
@@ -398,6 +464,14 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {wallOpen && (
+        <AuthWall
+          swipeCount={state.swipes.length}
+          keptCount={state.kept.length}
+          onDismiss={() => setWallOpen(false)}
+        />
+      )}
 
       {commentsCard && (
         <Comments
