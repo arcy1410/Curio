@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { usePostHog } from '@posthog/react'
 import Onboarding from './components/Onboarding.jsx'
 import Feed from './components/Feed.jsx'
 import Discovery from './components/Discovery.jsx'
@@ -7,13 +8,14 @@ import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { CARDS } from './data/cards.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
-import { loadState, saveState, resetState } from './lib/storage.js'
+import { loadState, saveState, resetState, getUserId } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 
 const CARD_BY_ID = Object.fromEntries(CARDS.map((c) => [c.id, c]))
 
 export default function App() {
+  const posthog = usePostHog()
   const [state, setState] = useState(loadState)
   const [tab, setTab] = useState('feed') // feed | discover | kept | profile
   const [commentsCard, setCommentsCard] = useState(null)
@@ -35,6 +37,14 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // Identify returning users on mount so session replay and events link to a person.
+  useEffect(() => {
+    if (state.onboarded) {
+      posthog?.identify(getUserId(), { interests: state.interests })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posthog])
+
   // ── Onboarding (first run) ──────────────────────────────────
   function finishOnboarding(interests) {
     const scores = initialScores(interests)
@@ -49,16 +59,25 @@ export default function App() {
       kept: [],
       swipes: [],
     }))
+    const userId = getUserId()
+    posthog?.identify(userId, { interests })
+    posthog?.capture('onboarding_completed', { interests_count: interests.length, interests })
   }
 
   // ── Edit interests later (keeps learned scores; only bonuses new picks) ──
   function saveInterests(interests) {
     const added = interests.filter((id) => !state.interests.includes(id))
+    const removed = state.interests.filter((id) => !interests.includes(id))
     const nextScores = addInterestBonus(scoresRef.current, added)
     scoresRef.current = nextScores
     setState((s) => ({ ...s, interests, topicScores: nextScores }))
     setEditingInterests(false)
     setToast('Interests updated')
+    posthog?.capture('interests_updated', {
+      interests_count: interests.length,
+      added_count: added.length,
+      removed_count: removed.length,
+    })
   }
 
   // ── Draw the next weighted, unseen card ─────────────────────
@@ -74,13 +93,20 @@ export default function App() {
     scoresRef.current = nextScores
     seenRef.current = new Set(seenRef.current).add(card.id)
 
+    posthog?.capture('card_swiped', {
+      action,
+      card_id: card.id,
+      card_topic: card.topic,
+    })
+
     setState((s) => ({
       ...s,
       topicScores: nextScores,
       seen: [...s.seen, card.id],
       swipes: [...s.swipes, { cardId: card.id, action, ts: Date.now() }],
     }))
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [posthog])
 
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
   const isSaved = (cardId) => state.kept.includes(cardId)
@@ -91,6 +117,10 @@ export default function App() {
       kept: already ? s.kept.filter((id) => id !== card.id) : [card.id, ...s.kept],
     }))
     setToast(already ? 'Removed from Kept' : 'Saved ♥')
+    posthog?.capture(already ? 'card_unsaved' : 'card_saved', {
+      card_id: card.id,
+      card_topic: card.topic,
+    })
   }
 
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
@@ -116,12 +146,21 @@ export default function App() {
       ...s,
       comments: { ...s.comments, [cardId]: [...(s.comments[cardId] || []), entry] },
     }))
+    posthog?.capture('comment_posted', {
+      card_id: cardId,
+      is_reply: parentId != null,
+    })
   }
 
   const commentCountFor = useCallback(
     (cardId) => (DEMO_COMMENTS[cardId]?.length || 0) + (state.comments[cardId]?.length || 0),
     [state.comments]
   )
+
+  function openComments(card) {
+    posthog?.capture('comments_opened', { card_id: card.id, card_topic: card.topic })
+    setCommentsCard(card)
+  }
 
   const keptCards = useMemo(
     () => state.kept.map((id) => CARD_BY_ID[id]).filter(Boolean),
@@ -171,7 +210,7 @@ export default function App() {
             onReplay={replay}
             scores={state.topicScores}
             swipeCount={state.swipes.length}
-            onOpenComments={setCommentsCard}
+            onOpenComments={openComments}
             commentCountFor={commentCountFor}
             onToggleSave={toggleSave}
             isSaved={isSaved}
@@ -179,7 +218,7 @@ export default function App() {
         )}
         {tab === 'discover' && (
           <Discovery
-            onOpenComments={setCommentsCard}
+            onOpenComments={openComments}
             commentCountFor={commentCountFor}
             onToggleSave={toggleSave}
             isSaved={isSaved}
@@ -188,7 +227,7 @@ export default function App() {
         {tab === 'kept' && (
           <KeptPile
             keptCards={keptCards}
-            onOpenComments={setCommentsCard}
+            onOpenComments={openComments}
             commentCountFor={commentCountFor}
             onToggleSave={toggleSave}
           />
@@ -204,6 +243,7 @@ export default function App() {
             onUpgradeAttempt={() => {
               haptic.error()
               setToast('Curio+ is a prototype — no payment taken')
+              posthog?.capture('paywall_upgrade_clicked', { plan: 'curio_plus' })
             }}
           />
         )}
@@ -221,6 +261,7 @@ export default function App() {
             className={`navitem ${tab === item.id ? 'on' : ''}`}
             onClick={() => {
               haptic.nav()
+              posthog?.capture('tab_changed', { tab: item.id, previous_tab: tab })
               setTab(item.id)
             }}
           >

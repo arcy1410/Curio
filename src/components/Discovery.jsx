@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePostHog } from '@posthog/react'
 import { TOPICS, topicColor, topicEmoji, topicName } from '../data/topics.js'
 import { CARDS } from '../data/cards.js'
 import { haptic } from '../lib/haptics.js'
@@ -14,6 +15,7 @@ function hostOf(url) {
 // Discovery — pick any topic and drill into every card in it, filtered by
 // sub-topic. Cards can be saved to the Kept pile straight from here.
 export default function Discovery({ onOpenComments, commentCountFor, onToggleSave, isSaved }) {
+  const posthog = usePostHog()
   const [topicId, setTopicId] = useState(null)
   const [sub, setSub] = useState(null)
 
@@ -35,6 +37,7 @@ export default function Discovery({ onOpenComments, commentCountFor, onToggleSav
                 style={{ '--topic-c': t.color }}
                 onClick={() => {
                   haptic.tap()
+                  posthog?.capture('discovery_topic_viewed', { topic_id: t.id })
                   setTopicId(t.id)
                   setSub(null)
                 }}
