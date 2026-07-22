@@ -27,6 +27,7 @@ export default function Feed({
   commentCountFor,
   onToggleSave,
   isSaved,
+  cardsReady = true,
 }) {
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
@@ -54,8 +55,21 @@ export default function Feed({
     return childRefs.current[id]
   }
 
-  // Fill the initial deck once on mount.
+  // Fill the initial deck once the card library has actually loaded.
+  //
+  // This waits on `cardsReady` for a reason that only shows up for RETURNING
+  // users. App seeds its card state with SEED_CARDS so the first paint is
+  // never empty, then swaps in the Supabase library when it arrives. A new
+  // user spends long enough in onboarding that the swap lands first — but a
+  // returning user goes straight to the feed, so drawing on mount built the
+  // whole deck out of seed cards. They'd read stale content, and every comment
+  // thread would fail, because a seed slug ("bly-lagaan") is not a UUID and
+  // the store 400s on it.
+  //
+  // loadCards() always resolves — it falls back to seed rather than throwing —
+  // so this can never hang the feed.
   useEffect(() => {
+    if (!cardsReady) return
     const initial = []
     for (let i = 0; i < DECK_SIZE; i++) {
       const c = drawNext(initial.map((x) => x.id))
@@ -65,7 +79,7 @@ export default function Feed({
     setDeck(initial)
     setReady(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [cardsReady])
 
   function handleSwipe(card, dir) {
     const action = dirToAction(dir)

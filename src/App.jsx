@@ -27,6 +27,10 @@ export default function App() {
   const [cards, setCards] = useState(SEED_CARDS)
   const [cardSource, setCardSource] = useState('seed')
   const cardsRef = useRef(SEED_CARDS) // drawNext reads this, never a stale closure
+  // Gates the Feed's first deck draw. Without it a returning user — who skips
+  // onboarding and lands straight on the feed — builds their whole deck from
+  // SEED_CARDS before the real library arrives.
+  const [cardsReady, setCardsReady] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -35,6 +39,7 @@ export default function App() {
       cardsRef.current = loaded
       setCards(loaded)
       setCardSource(source)
+      setCardsReady(true)
       if (import.meta.env.DEV) {
         console.info(`[cards] ${loaded.length} from ${source}${error ? ` (${error})` : ''}`)
       }
@@ -330,6 +335,7 @@ export default function App() {
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
+            cardsReady={cardsReady}
           />
         )}
         {tab === 'discover' && (
