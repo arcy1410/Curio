@@ -70,29 +70,42 @@ discussing general concepts only. When asked to produce one of these, help the s
 think, structure, and critique — but they write it. If unsure how AI assistance maps
 onto a coding scheme, the student should confirm with the instructor.
 
-## Current status (2026-07-19)
+## Current status (2026-07-22)
 
-The React prototype is **built, verified, and shipped live** — pushed to GitHub
-([github.com/arcy1410/Curio](https://github.com/arcy1410/Curio)) and deployed on
-Vercel (**https://curio-three-iota.vercel.app/**, auto-deploys on push to `main`).
-It is still **frontend-only** — seed content + `localStorage`, no backend or LLM yet.
-This prototype IS the scaffold the real product grows from.
+Live at **https://curio-three-iota.vercel.app/** (auto-deploys on push to `main`),
+source at [github.com/arcy1410/Curio](https://github.com/arcy1410/Curio). **No
+longer frontend-only** — Supabase backs content, identity and comments.
 
-Working: onboarding topic picker · swipe feed (`react-tinder-card` + Keep/Pass
-buttons) · additive topic-weight personalization with a visible "tuning" meter ·
-kept pile · per-card comments (one reply level) with a profanity filter · mocked
-Curio+ paywall (locked state, no payment) · 22 hand-written source-cited cards ·
-dark high-contrast theme with per-topic neon colors, haptics, and micro-interactions.
+Working: onboarding topic picker · swipe feed (`react-tinder-card`, explicit
+Save) · additive topic-weight personalization with a visible "tuning" meter ·
+kept pile (20-card free cap) · mocked Curio+ paywall · dark high-contrast theme
+with haptics · PostHog instrumentation.
 
-**Gaps to a course-graded product (in build order):** (1) a **real content backend +
-LLM pipeline** (Supabase + Sonnet-generates / Haiku-verifies, Phase 2 below) so cards
-aren't a fixed seed set — this is the foundational piece; (2) **analytics
-instrumentation** (PostHog/Mixpanel) added *alongside* the Session-4 MVP build — it's
-frontend-only so it never blocks on the backend, but only produces signal once real
-users are on it, so instrument at build/launch time, not before; (3) **real users** on
-the live link by Session 7; (4) a **Product Metrics Dashboard** on live data for Demo
-Day. (Course ideal is "instrument from day one," but the syllabus bundles PostHog setup
-into the Session-4 build workshop — so backend-then-instrument is the right sequence.)
+Backed by Supabase:
+- **Cards** — 21 hand-written + machine-generated, all `verified: true`. RLS
+  makes an unverified draft *unreadable* by any client key (G3 is a database
+  policy, not a promise).
+- **Content pipeline** (`api/pipeline.js`) — Guardian trending → Wikipedia
+  grounding → generate → verify → store. Sensitivity and topic-relevance
+  filters at *selection* time; the verifier only checks groundedness, never
+  whether a source belonged in the feed.
+- **Shared comments** — every user sees every other user's thread. Profanity
+  and one-level-reply rules are triggers, so they hold even against a direct
+  PostgREST call that skips the React app.
+- **Identity (R9)** — anonymous by default; Google via `linkIdentity` on the
+  8th swipe-action. Linking preserves the account id, so **there is no merge
+  step** — the anonymous row *becomes* the signed-in account.
+
+**Still `localStorage` only: swipes, saves, topic scores.** Identity now
+exists, so moving them is mechanical — but until it happens a user on a second
+device starts from zero, and none of that behaviour is queryable for the
+metrics dashboard.
+
+**Gaps to a course-graded product:** (1) **real users** on the live link by
+Session 7 — nothing technical blocks this now, and it is the requirement
+nothing else substitutes for; (2) a **Product Metrics Dashboard** on live data
+for Demo Day; (3) the remaining spec items (R7 parity boost, locked nested
+reply, 30s dwell, swipe undo).
 
 ## Environment gotchas
 
