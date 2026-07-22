@@ -6,8 +6,8 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** §1–7 complete (Goals · Non-Goals · Narratives · Requirements ·
-Error Scenarios · Telemetry · Acceptance Criteria) · NFRs and
+**Status:** §1–8 complete (Goals · Non-Goals · Narratives · Requirements ·
+Error Scenarios · Telemetry · Acceptance Criteria · NFRs) ·
 Prioritization: in progress
 
 ---
@@ -848,6 +848,83 @@ of §4–5 — the places where a precise test matters most.
 - Given a fresh-ish user whose top score is 2, **when** they add a topic,
   **then** it gets the +4 head-start (the higher of the two rules).
 
-## 8. Non-Functional Requirements — *pending*
+## 8. Non-Functional Requirements
+
+Every number is tagged: **[measured]** (from our build), **[derived]**
+(follows from a spec rule), or **[estimate]** (judgment — revisit at build).
+
+### Performance
+
+- **Swipe-to-next-card never waits on the network.** The next card renders
+  from the already-loaded deck within **100ms [estimate]** of the swipe
+  committing — serving is store-backed and prefetched (R2); no LLM, no
+  fetch, in the interaction path **[derived]**.
+- **Initial load:** interactive in **under 3 seconds on a mid-range Android
+  over 4G [estimate]** — the target user's device context. Current bundle:
+  165 kB gzipped **[measured]**; budget **200 kB gzipped [estimate]** as
+  auth + Supabase client land.
+- **Score updates are synchronous** — meter and next-draw weighting reflect
+  a swipe before the next card is drawn **[derived from R2]**.
+- **Dwell timer accuracy:** ±1s acceptable; the 30s threshold is coarse by
+  design **[derived from E4's under-marking bias]**.
+
+### Reliability
+
+- **Merge is idempotent:** repeated submission of the same signup merge
+  produces exactly one account state — retries (E2) can never duplicate
+  swipes or kept cards.
+- **Swipe records are exactly-once per card** — double-fire guards at both
+  gesture and button paths **[derived from R3]**.
+- **Pipeline failures never corrupt the store:** a failed R10 run leaves
+  the cards table exactly as it was; regeneration retries bounded at **2
+  per card [estimate]**, then discard.
+- **Corrupt localStorage → fresh onboarding, never a crash**
+  **[measured — existing behavior]**.
+
+### Cost
+
+- **Per-verified-card generation cost:** capped at a number **derived at
+  build time** from actual Sonnet+Haiku token pricing — deliberately not
+  invented here. Structural controls already specced: model split (cheap
+  verifier), bounded retries, capped per-run volume (R10). Each card
+  records its **model version + processing cost** for cross-version
+  cost/quality comparison.
+- **Analytics stays within PostHog's free tier** (1M events/month
+  **[estimate — verify current terms]**) at Demo Day scale; per-session
+  event volume is bounded by the explicit taxonomy — no autocapture flood
+  **[derived]**.
+- **Supabase free tier suffices for the course** (hundreds of users)
+  **[estimate]**.
+
+### Privacy & Security
+
+- **No secret in the client bundle — testable:** grep of `dist/` for key
+  patterns (`sk-`, service-role tokens) returns nothing; the only key
+  present is PostHog's write-only `phc_` **[measured today, must stay
+  true]**.
+- **All LLM/Guardian/TMDB calls server-side** (R10) — the client never
+  holds those credentials **[derived]**.
+- **No free-form user text in telemetry — testable:** audit every event
+  payload against the §6 taxonomy **[measured — implemented]**.
+- **Target release:** Supabase Row-Level Security — a user reads/writes
+  only their own swipes/kept/comments; cards world-readable **[derived
+  from R9]**.
+
+### Compatibility
+
+- **Mobile-first web:** Android Chrome and iOS Safari, current + previous
+  2 major versions **[estimate]**; desktop current
+  Chrome/Safari/Firefox/Edge.
+- **Minimum viewport 375px** (iPhone SE class) **[measured]**; both touch
+  gestures *and* buttons for every swipe action **[measured — built]**.
+- **No install required** — the product works as a plain URL (MVP is a web
+  app; R11 parked partly for this reason).
+
+### Scalability
+
+- **Demo Day scale is the requirement:** hundreds of concurrent users, not
+  thousands **[derived from course context]**. The pipeline scales content
+  by schedule, not user count — user growth costs ~zero marginal
+  generation **[derived]**.
 
 ## 9. Prioritization — *pending*
