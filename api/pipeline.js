@@ -15,13 +15,39 @@ import { createClient } from '@supabase/supabase-js'
 import { fetchWikipedia, searchWikipedia, fetchGuardianTrending } from './_lib/sources.js'
 import { generateVerifiedCard } from './_lib/cardgen.js'
 
-// Guardian sections that map onto Curio's topics. Guardian is the trending
-// signal; the card itself is usually grounded on Wikipedia.
+// How each Curio topic maps onto trending input.
+//
+// `guardianQuery` is doing the real work here, not `guardianSection`. Guardian
+// sections are global: `sport` is dominated by rugby, football and AFL, and a
+// section-only pull produced trending items with nothing to do with Indian
+// cricket. The query keeps the India-first wedge intact; the section just
+// narrows the corpus.
+//
+// `seeds` are durable Wikipedia articles used to top up a topic when trending
+// yields nothing groundable — they keep a run productive on a quiet news day.
 const TOPIC_SOURCES = {
-  cricket: { guardianSection: 'sport', seeds: ['Indian Premier League', 'Cricket World Cup'] },
-  markets: { guardianSection: 'business', seeds: ['Bombay Stock Exchange', 'NIFTY 50'] },
-  bollywood: { guardianSection: 'film', seeds: ['Bollywood', 'Cinema of India'] },
-  history: { guardianSection: null, seeds: ['History of India', 'Maurya Empire'] },
+  cricket: {
+    guardianSection: 'sport',
+    guardianQuery: 'cricket AND (India OR Indian OR IPL)',
+    seeds: ['Indian Premier League', 'India national cricket team', 'Cricket World Cup'],
+  },
+  markets: {
+    guardianSection: 'business',
+    guardianQuery: '(India OR Indian OR rupee OR Sensex OR Mumbai) AND (economy OR markets OR stocks)',
+    seeds: ['BSE SENSEX', 'NIFTY 50', 'Reserve Bank of India'],
+  },
+  bollywood: {
+    guardianSection: 'film',
+    guardianQuery: 'Bollywood OR "Hindi cinema" OR "Indian film"',
+    seeds: ['Bollywood', 'Cinema of India', 'Filmfare Awards'],
+  },
+  history: {
+    // No section: Guardian files Indian history across culture, world and
+    // books. The query alone is the better filter here.
+    guardianSection: null,
+    guardianQuery: '"Indian history" OR "ancient India" OR Mughal OR Maurya',
+    seeds: ['History of India', 'Maurya Empire', 'Indus Valley Civilisation'],
+  },
 }
 
 function supabase() {
@@ -43,9 +69,12 @@ async function findSources(topic, limit) {
   const sources = []
   let guardianError = null
 
-  if (config.guardianSection) {
+  if (config.guardianQuery) {
     try {
-      const trending = await fetchGuardianTrending(config.guardianSection, { limit })
+      const trending = await fetchGuardianTrending(config.guardianSection, {
+        limit,
+        query: config.guardianQuery,
+      })
       // Resolve each trending headline to a Wikipedia article where we can —
       // Wikipedia gives durable, checkable prose; a news article goes stale.
       for (const item of trending.slice(0, limit)) {
