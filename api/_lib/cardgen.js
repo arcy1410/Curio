@@ -9,9 +9,34 @@
 // prose or rely on the model formatting JSON correctly by luck.
 
 import Anthropic from '@anthropic-ai/sdk'
+import {
+  geminiGenerateCard,
+  geminiVerifyCard,
+  GEMINI_GENERATOR,
+  GEMINI_VERIFIER,
+} from './gemini.js'
 
 const GENERATOR = 'claude-sonnet-5'
 const VERIFIER = 'claude-haiku-4-5'
+
+/**
+ * Which provider runs the generate/verify pair.
+ *
+ * Anthropic (Sonnet writes, Haiku checks) is the target design and wins
+ * whenever its key is present. Gemini is an interim stand-in so the pipeline
+ * isn't blocked on billing — same two-model structure, same prompts, weaker
+ * independence (both verifier and generator come from one family).
+ *
+ * Set PROVIDER=gemini to force Gemini even when an Anthropic key exists.
+ */
+export function activeProvider() {
+  const forced = process.env.PROVIDER
+  if (forced === 'gemini') return 'gemini'
+  if (forced === 'anthropic') return 'anthropic'
+  if (process.env.ANTHROPIC_API_KEY) return 'anthropic'
+  if (process.env.GEMINI_API_KEY) return 'gemini'
+  throw new Error('no model provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)')
+}
 
 // Standard list prices per million tokens. Used for the per-card cost figure
 // recorded on every row (spec R10: "records model version and processing cost
@@ -201,16 +226,20 @@ Does this card contain any claim not directly supported by the source text above
  * unverified card — "fail closed" is the entire point of the gate.
  */
 export async function generateVerifiedCard({ source, topicName, subtopicName, maxRetries = 2 }) {
+  const provider = activeProvider()
+  const gen = provider === 'gemini' ? geminiGenerateCard : generateCard
+  const check_ = provider === 'gemini' ? geminiVerifyCard : verifyCard
+
   let cost = 0
   let attempts = 0
   let lastFlags = []
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     attempts++
-    const card = await generateCard({ source, topicName, subtopicName })
+    const card = await gen({ source, topicName, subtopicName })
     cost += card.cost
 
-    const check = await verifyCard({ source, card })
+    const check = await check_({ source, card })
     cost += check.cost
 
     if (check.verified) {
