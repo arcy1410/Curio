@@ -6,8 +6,11 @@
 import { TOPICS } from '../data/topics.js'
 
 // Tuning knobs — deliberately punchy so the shift is observable quickly.
+// The score ladder (spec §4): Pass −1 · Interested +3 · feed-Save +5
+// (Discover saves apply the plain +3 'interested' delta).
 const KEEP_DELTA = 3
 const PASS_DELTA = -1
+const SAVE_DELTA = 5 // saving is the costlier, more deliberate signal
 const ONBOARD_BONUS = 4 // interests chosen at onboarding start ahead
 const FLOOR = 0.15 // every topic keeps a small chance so the feed never collapses
 
@@ -18,11 +21,12 @@ export function initialScores(interests = []) {
   return scores
 }
 
-// A swipe nudges the topic's score. Right swipe = 'interested' (positive),
-// left swipe = 'pass' (negative). Saving is separate and does not go through here.
+// An action nudges the topic's score along the ladder:
+// 'pass' −1 · 'interested' +3 · 'save' +5 (feed save — supersedes the +3,
+// never stacks with it). Discover saves pass 'interested' for their +3.
 export function applySwipe(scores, topicId, action) {
   const next = { ...scores }
-  const delta = action === 'pass' ? PASS_DELTA : KEEP_DELTA
+  const delta = action === 'pass' ? PASS_DELTA : action === 'save' ? SAVE_DELTA : KEEP_DELTA
   next[topicId] = (next[topicId] ?? 0) + delta
   return next
 }

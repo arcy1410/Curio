@@ -1226,3 +1226,74 @@ button {
   -webkit-line-clamp: unset;
   display: block;
 }
+
+/* ── Kept full-card reopen ─────────────────────────────────── */
+.kept-open {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+}
+.kept-item.expanded {
+  box-shadow: 0 0 32px -10px var(--topic);
+}
+.kept-item.expanded .kept-body {
+  -webkit-line-clamp: unset;
+  display: block;
+  color: #d9d5cd;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.kept-item.expanded h3 {
+  font-size: 21px;
+}
+
+/* ── Migration notice (R8) ─────────────────────────────────── */
+.migration-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55); /* dims but never hides the app */
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: fade 0.25s ease;
+}
+.migration-notice {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--line-strong);
+  border-radius: 20px;
+  padding: 24px 22px;
+  box-shadow: var(--shadow-card), 0 0 40px -12px var(--accent);
+  animation: toastPop 0.35s var(--spring);
+}
+.migration-notice .mn-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.migration-notice h3 {
+  font-family: var(--serif);
+  font-size: 22px;
+  margin: 8px 0 10px;
+}
+.migration-notice p {
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0 0 12px;
+}
+.migration-notice p b {
+  color: var(--ink);
+}
+.migration-notice .mn-fine {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  margin-bottom: 16px;
+}

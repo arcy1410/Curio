@@ -7,7 +7,7 @@ import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { CARDS } from './data/cards.js'
 import { DEMO_COMMENTS } from './data/demoComments.js'
-import { loadState, saveState, resetState } from './lib/storage.js'
+import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 import { track, setPersonProps, resetAnalytics, EV } from './lib/analytics.js'
@@ -36,6 +36,21 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
+  // ── Migration notice (R8): semantics changed under this user's habits ──
+  const needsMigrationNotice = state.onboarded && state.stateVersion < STATE_VERSION
+  useEffect(() => {
+    if (needsMigrationNotice) {
+      track(EV.MIGRATION_NOTICE_SHOWN, { from_version: state.stateVersion, to_version: STATE_VERSION })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsMigrationNotice])
+
+  function dismissMigrationNotice() {
+    haptic.tap()
+    track(EV.MIGRATION_NOTICE_DISMISSED, { from_version: state.stateVersion, to_version: STATE_VERSION })
+    setState((s) => ({ ...s, stateVersion: STATE_VERSION }))
+  }
+
   // ── Onboarding (first run) ──────────────────────────────────
   function finishOnboarding(interests) {
     const scores = initialScores(interests)
@@ -44,6 +59,7 @@ export default function App() {
     setState((s) => ({
       ...s,
       onboarded: true,
+      stateVersion: STATE_VERSION, // fresh users start on current semantics — no migration notice
       interests,
       topicScores: scores,
       seen: [],
@@ -106,22 +122,78 @@ export default function App() {
   }, [])
 
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
+  // Spec R4: free tier caps at 20 saves; a feed save auto-swipes right with
+  // +5 (recorded as an 'interested' swipe, method 'save'); a Discover save
+  // applies the plain +3 and does not touch the deck. Unsaving frees a cap
+  // slot but never retracts scores (signals are historical).
+  // Returns 'saved' | 'removed' | 'blocked' so callers (Feed) can react.
+  const SAVE_CAP = 20
   const isSaved = (cardId) => state.kept.includes(cardId)
   function toggleSave(card, source = 'unknown') {
     const already = state.kept.includes(card.id)
-    setState((s) => ({
-      ...s,
-      kept: already ? s.kept.filter((id) => id !== card.id) : [card.id, ...s.kept],
-    }))
-    setToast(already ? 'Removed from Kept' : 'Saved ♥')
 
-    track(already ? EV.CARD_UNSAVED : EV.CARD_SAVED, {
+    if (already) {
+      setState((s) => ({ ...s, kept: s.kept.filter((id) => id !== card.id) }))
+      setToast('Removed from Kept')
+      track(EV.CARD_UNSAVED, {
+        card_id: card.id,
+        topic: card.topic,
+        subtopic: card.subtopic,
+        source,
+        kept_count: state.kept.length - 1,
+      })
+      return 'removed'
+    }
+
+    // Cap check — a blocked save adds nothing, scores nothing, swipes nothing.
+    if (state.kept.length >= SAVE_CAP) {
+      setToast('Kept pile full — Curio+ is unlimited')
+      track(EV.SAVE_LIMIT_REACHED, { kept_count: SAVE_CAP })
+      return 'blocked'
+    }
+
+    // Score the save: feed saves are the strongest signal (+5); saves from
+    // other surfaces apply the plain interested delta (+3).
+    const action = source === 'feed' ? 'save' : 'interested'
+    const nextScores = applySwipe(scoresRef.current, card.topic, action)
+    scoresRef.current = nextScores
+
+    const newCount = state.kept.length + 1
+    if (source === 'feed') {
+      // Feed save auto-swipes right: record it as a swipe too, and mark seen.
+      seenRef.current = new Set(seenRef.current).add(card.id)
+      setState((s) => ({
+        ...s,
+        kept: [card.id, ...s.kept],
+        topicScores: nextScores,
+        seen: [...s.seen, card.id],
+        swipes: [...s.swipes, { cardId: card.id, action: 'interested', ts: Date.now() }],
+      }))
+      track(EV.CARD_SWIPED, {
+        card_id: card.id,
+        topic: card.topic,
+        subtopic: card.subtopic,
+        action: 'interested',
+        method: 'save',
+        swipe_index: seenRef.current.size - 1,
+      })
+    } else {
+      setState((s) => ({
+        ...s,
+        kept: [card.id, ...s.kept],
+        topicScores: nextScores,
+      }))
+    }
+
+    setToast(newCount >= 15 ? `Saved ♥ · ${newCount}/${SAVE_CAP}` : 'Saved ♥')
+    track(EV.CARD_SAVED, {
       card_id: card.id,
       topic: card.topic,
       subtopic: card.subtopic,
-      source, // 'feed' | 'discovery' | 'kept'
-      kept_count: already ? state.kept.length - 1 : state.kept.length + 1,
+      source,
+      kept_count: newCount,
     })
+    return 'saved'
   }
 
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
@@ -288,6 +360,26 @@ export default function App() {
           onAdd={addComment}
           onClose={() => setCommentsCard(null)}
         />
+      )}
+
+      {/* R8: one-time semantics-change notice for returning users. Dims but
+          never hides the content underneath; explicit dismiss only. */}
+      {needsMigrationNotice && (
+        <div className="migration-backdrop">
+          <div className="migration-notice">
+            <div className="mn-kicker">What changed</div>
+            <h3>Swipes work differently now</h3>
+            <p>
+              Right swipe = <b>Interested</b> — it tunes your feed but{' '}
+              <b>doesn&apos;t save</b> anymore. Tap <b>🔖 Save</b> to keep a card
+              — it saves <em>and</em> moves to the next one.
+            </p>
+            <p className="mn-fine">Your kept cards and tuned feed are untouched.</p>
+            <button className="btn-primary" onClick={dismissMigrationNotice}>
+              Got it
+            </button>
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}

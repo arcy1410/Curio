@@ -106,15 +106,31 @@ export default function Feed({
     }
   }
 
-  // Explicit save/unsave of the current top card.
-  function saveTop() {
+  // Explicit save of the current top card. Spec R4: a feed save auto-swipes
+  // right — App records the save AND the swipe (+5); we only animate the
+  // card away and advance the deck. The swiped-guard prevents the TinderCard
+  // onSwipe callback from double-recording it as a plain swipe.
+  async function saveTop() {
     const top = deck[0]
     if (!top) return
-    const wasSaved = isSaved(top.id)
-    onToggleSave(top)
-    if (!wasSaved) {
+    const result = onToggleSave(top) // 'saved' | 'blocked' | 'removed'
+    if (result === 'saved') {
       haptic.success()
       fireBurst()
+      swiped.current.add(top.id) // already recorded by App — don't record again
+      setDragDir(null)
+      const ref = childRefs.current[top.id]
+      if (ref?.current) {
+        try {
+          await ref.current.swipe('right')
+        } catch {
+          handleLeftScreen(top)
+        }
+      } else {
+        handleLeftScreen(top)
+      }
+    } else if (result === 'blocked') {
+      haptic.error() // cap hit — card stays put, nudge toast is showing
     } else {
       haptic.tap()
     }

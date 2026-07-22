@@ -4,7 +4,14 @@
 
 const KEY = 'curio.state.v1'
 
+// Interaction-semantics version (spec R8). Bump whenever a release changes
+// what an existing gesture DOES, and ship a one-time migration notice.
+//   v1 (implicit): right swipe = Keep (saved to pile)
+//   v2: right swipe = Interested (no save); 🔖 Save saves and auto-advances
+export const STATE_VERSION = 2
+
 const DEFAULT_STATE = {
+  stateVersion: STATE_VERSION,
   onboarded: false,
   interests: [], // topic ids chosen at onboarding
   topicScores: {}, // { topicId: number }
@@ -19,7 +26,12 @@ export function loadState() {
     const raw = localStorage.getItem(KEY)
     if (!raw) return { ...DEFAULT_STATE }
     const parsed = JSON.parse(raw)
-    return { ...DEFAULT_STATE, ...parsed }
+    // Legacy detection BEFORE the default-spread: an onboarded state with no
+    // stateVersion predates versioning (v1, "right swipe = Keep"). Without
+    // this, the spread would stamp it v2 and the migration notice (R8)
+    // could never fire.
+    const version = parsed.stateVersion ?? (parsed.onboarded ? 1 : STATE_VERSION)
+    return { ...DEFAULT_STATE, ...parsed, stateVersion: version }
   } catch {
     return { ...DEFAULT_STATE }
   }

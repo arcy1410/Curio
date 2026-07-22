@@ -86,6 +86,7 @@ export function resetAnalytics() {
 export const EV = {
   // lifecycle
   APP_OPENED: 'app_opened',
+  SESSION_ENDED: 'session_ended', // {duration_s} per foreground stint — guardrail + DAU/MAU basis
 
   // onboarding (funnel entry)
   ONBOARDING_STARTED: 'onboarding_started',
@@ -101,6 +102,14 @@ export const EV = {
   CARD_SWIPED: 'card_swiped', // { action: 'interested' | 'pass' }
   CARD_SAVED: 'card_saved',
   CARD_UNSAVED: 'card_unsaved',
+  SAVE_LIMIT_REACHED: 'save_limit_reached', // {kept_count: 20} — highest-intent paywall moment
+
+  // pile
+  KEPT_CARD_OPENED: 'kept_card_opened', // full-card reopen from Kept — the "retained" signal (G4)
+
+  // migration (R8)
+  MIGRATION_NOTICE_SHOWN: 'migration_notice_shown',
+  MIGRATION_NOTICE_DISMISSED: 'migration_notice_dismissed',
   SOURCE_LINK_CLICKED: 'source_link_clicked', // trust signal engagement
   FEED_EXHAUSTED: 'feed_exhausted',
   FEED_REPLAYED: 'feed_replayed',
