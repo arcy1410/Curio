@@ -123,6 +123,46 @@ export async function signInWithGoogle() {
   }
 }
 
+/**
+ * Give a freshly signed-in user a display name from their Google profile.
+ *
+ * Without this every commenter is "Reader" — set_comment_author()'s fallback —
+ * which on a shared thread is worse than anonymous: readers can't tell two
+ * people apart and it looks broken. Google returns a name; we just weren't
+ * using it.
+ *
+ * FIRST NAME ONLY, deliberately. Comment threads are public, so a full name is
+ * more identification than someone agreed to when they pressed "sign in with
+ * Google" to keep their Kept pile. A first name is enough to hold a
+ * conversation.
+ *
+ * Runs once per account: if display_name is already set — including a name the
+ * user chose themselves — we never overwrite it.
+ */
+export async function ensureDisplayName(user) {
+  if (!isPermanent(user)) return
+  const supabase = await getClient()
+  if (!supabase) return
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name')
+      .eq('id', user.id)
+      .maybeSingle()
+    if (profile?.display_name) return
+
+    const meta = user.user_metadata ?? {}
+    const full = (meta.full_name || meta.name || meta.given_name || '').trim()
+    const first = full.split(/\s+/)[0]
+    if (!first) return
+
+    await supabase.from('profiles').update({ display_name: first }).eq('id', user.id)
+  } catch {
+    // A missing name is cosmetic — never block sign-in over it.
+  }
+}
+
 /** Sign out, then drop the memoised session so the next write starts clean. */
 export async function signOut() {
   const supabase = await getClient()

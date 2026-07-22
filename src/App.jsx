@@ -7,7 +7,7 @@ import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { fetchCommentCounts } from './lib/comments.js'
-import { onAuthChange, isPermanent, signOut } from './lib/session.js'
+import { onAuthChange, isPermanent, signOut, ensureDisplayName } from './lib/session.js'
 import AuthWall from './components/AuthWall.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
@@ -59,6 +59,7 @@ export default function App() {
       }
 
       setWallOpen(false)
+      ensureDisplayName(user) // otherwise every commenter reads as "Reader"
       // Stitch the pre-signup visitor onto the account so the gate funnel is
       // one funnel rather than two disconnected people.
       identifyUser(user.id, { auth_provider: user.app_metadata?.provider ?? 'unknown' })
