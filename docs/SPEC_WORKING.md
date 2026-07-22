@@ -6,7 +6,8 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** Goals + Non-Goals complete · Narratives onward: in progress
+**Status:** Goals + Non-Goals + Narratives + Requirements (§1–4) complete ·
+Error Scenarios onward: in progress
 
 ---
 
@@ -251,7 +252,315 @@ only by losing a card. A one-time "what's new: right swipe no longer saves —
 use 🔖" notice for returning users is a real gap this narrative surfaces
 (candidate requirement for §4).
 
-## 4. Requirements & Features — *pending*
+## 4. Requirements & Features
+
+Each requirement states: trigger/precondition · core behaviour · business
+rules · output/state change · exceptions. "Build status" marks work items
+this spec creates (vs. behavior already shipped).
+
+**The score ladder (one scale, referenced throughout):**
+Pass **−1** · Interested **+3** · Save from feed **+5** · Save from Discover **+3**.
+
+### R1 — Choose interests (onboarding)
+
+**Trigger:** first visit — no stored state exists in this browser.
+
+**The user must be able to:** see all topics (name, emoji, blurb, subtopics)
+before choosing; select/deselect freely; confirm only with ≥2 selected — the
+CTA stays disabled below the minimum and states how many more are needed.
+
+**Business rules:** no account, email, or personal data required to complete
+onboarding. Chosen interests seed scores (+4 each); unchosen topics start at
+0 but remain servable (floor weight — no topic is ever fully excluded).
+
+**Output:** `onboarded: true` + interests + seeded scores persisted; user
+lands in the feed with a full deck; `onboarding_completed` fires.
+
+**Exceptions:** refresh mid-selection restarts onboarding harmlessly. If
+storage is unavailable (private mode/quota), the app still works for the
+session — it must not crash or block.
+
+### R2 — Serve the feed
+
+**Trigger:** onboarded user opens the Feed; or a swipe removes the top card.
+
+**The system must:** keep a stack of up to 3 cards, one active top card;
+draw each next card from the pool of **unseen, `verified: true`** cards,
+weighted by current topic scores; serve **only from the card store** (seed
+cards today; Supabase store filled by the async R10 pipeline in the target
+release) — **generation never runs in the serving path**; a swipe never
+waits on an LLM. Never re-serve a swiped card; keep every topic drawable via
+the floor weight (no hard filter bubble). Fire `card_viewed` exactly once
+per card, when it becomes top.
+
+**Business rules:** weighting reflects scores at draw time (a swipe updates
+scores before the replacement is drawn). The feed stays responsive if the
+store is unreachable: serve the prefetched deck, degrade to a clear "can't
+load new cards" state — never a spinner blocking the swipe in hand.
+
+**Exceptions:** pool exhausted → caught-up state with explicit *Swipe again*
+(replay clears `seen`, **preserves** scores + Kept; `feed_exhausted` fires).
+In the target release the pool grows over time — exhaustion means "caught up
+*for now*." A card failing to render must not wedge the deck. The pipeline
+itself is specced in R10, not here.
+
+### R3 — Swipe: Interested / Pass
+
+**Trigger:** an active top card; drag past threshold or tap 👍 / ✕.
+
+**The user must be able to:** swipe right = Interested / left = Pass, by
+gesture *and* button with identical results; see which action a drag will
+commit before releasing (stamp at threshold; dragging back cancels); read
+the gesture meaning at all times (persistent hint line).
+
+**Business rules:** right +3, left −1, applied before the next draw. **A
+swipe never saves** — Kept is exclusively R4's explicit action. Vertical
+swipes disabled. Each card recorded at most once (double-count guard).
+
+**Output:** swipe appended with action + timestamp; card enters `seen`;
+`card_swiped {action, method: gesture|button, topic, swipe_index}` fires.
+
+**Exceptions:** if the swipe animation fails, the action is still recorded
+and the deck still advances — logic never depends on animation. **Known gap,
+flagged:** no undo; a mis-swipe is unrecoverable in the feed (mechanism
+behind Rohan's lost card in N2) — §9 prioritization candidate.
+
+### R4 — Save to Kept: save auto-swipes right
+
+**Trigger:** 🔖 on the feed's top card, or 🔖 Save on a Discover row.
+
+**Core behaviour:** in the feed, **Save = Keep + Interested in one action** —
+card added to Kept, auto-swipes right, **+5** topic score (supersedes the
+plain +3; the costlier, more deliberate signal), recorded as `card_swiped
+{action: interested, method: save}`. In Discover, Save adds to Kept with
+**+3** (no deck to advance). **Unsave** from Kept or Discover rows; frees a
+cap slot but does not retract scores (signals are historical).
+
+**Business rules:** Kept modified only by explicit Save/Unsave; one entry
+per card; most-recent first. R3's rule holds one-directionally: a plain
+swipe never saves, but a save always swipes. **Free tier caps at 20 saved
+cards:** the 21st save is blocked — not added, not scored, no auto-swipe —
+and the Curio+ nudge shows ("Kept pile full — Curio+ is unlimited"). Per
+NG1, never a payment flow. The cap blocks new saves only — never deletes
+existing ones; unsaving below 20 re-enables. From 15/20 onward,
+confirmations show the count ("Saved ♥ · 17/20").
+
+**Output:** `kept` persisted; fires both `card_saved {source, kept_count}`
+and `card_swiped {action: interested, method: save}`; blocked saves fire
+`save_limit_reached {kept_count: 20}` — the paywall's highest-intent moment.
+
+**Exceptions:** save completes (persist + events) even if the animation
+fails. Brownfield user with >20 saves keeps everything; only new saves
+block. **Build status:** auto-swipe-on-save, `SAVE_DELTA = 5`, the 20-cap,
+counter toast, and `save_limit_reached` are all new work items. Known gap
+unchanged: no full-card reopen from Kept (§9).
+
+### R5 — Discovery (scroll and read only)
+
+**Trigger:** the user opens the Discover tab.
+
+**The user must be able to:** see **all** topics — not just onboarding picks
+— each with a live card count; drill in and read **full card bodies**;
+filter by subtopic with an explicit **All** chip and a visible count; save
+(🔖, +3, Kept, cap applies) or open comments per row; back out freely.
+**No swipe controls on rows** — Discover is scroll-and-read only.
+
+**Business rules:** **read in Discover = seen everywhere.** A card that
+actually entered view in the list is marked `seen` and is not served again
+in the feed — no duplicates across surfaces. (Stated implication: scrolling
+a full topic list retires those cards from the feed; acceptable — the user
+already read them. Makes the R10 pipeline more load-bearing at 21 cards.)
+Reading alone never scores; only Save (+3) does. Topic availability is
+never gated by interests — Discover is the anti-filter-bubble surface (G5).
+
+**Output:** Discover-read cards enter `seen`; `discovery_opened`,
+`discovery_topic_selected {topic, card_count}`,
+`discovery_subtopic_filtered {topic, subtopic}`, `card_saved {source:
+discovery}` with +3. No `card_swiped` ever originates from Discover.
+
+**Exceptions:** zero-card subtopics show an honest empty state (routine in
+the target release while the pipeline back-fills). Target release: counts
+reflect only `verified: true` cards — unverified output invisible here as
+in the feed (G3 applies everywhere). **Build status:** viewport
+seen-marking and the surface-dependent save weight are new work items.
+Known constraint (G5): several subtopics currently hold 1 card.
+
+### R6 — Comments
+
+**Trigger:** 💬 on any card (feed, Discover, or Kept).
+
+**The user must be able to:** read the thread in a sheet without losing
+their place (count visible on the trigger); post a top-level comment or
+**reply one level deep, free**; see rejected input stay in the composer
+with a specific reason — never silently discarded.
+
+**Reply-to-a-reply is Curio+, shown locked:** depth-1 replies display a 🔒
+Reply control — visible, tappable, never opens a composer. Tapping shows
+the Curio+ nudge ("Deeper threads are Curio+") and fires `paywall_clicked
+{feature: nested_reply}`. Per NG1 no payment flow; the unlock is mocked, so
+depth 2 is never actually posted in this release.
+
+**Business rules:** every submission passes the profanity/spam filter
+before acceptance (empty / >500 chars / links / blocklist → matching
+reason). Comments are per-card only — no global feed, no cross-card
+surfacing. Comment text never leaves the device as telemetry:
+`comment_posted` carries structure only (`is_reply`, `length_bucket`);
+`comment_rejected` carries the reason only.
+
+**Output:** accepted comments append with timestamp; `comments_opened` /
+`comment_posted` / `comment_rejected` fire. `paywall_clicked` gains a
+`feature` property — with `save_limit_reached`, the two comparative
+paywall-intent signals.
+
+**Exceptions:** rejection keeps composer state (text + reply target);
+cancelling a reply target reverts to top-level, keeping the text. Target
+release: the word-list filter is v1 by scope; if the comment-toxicity
+guardrail trips, filter quality becomes a §9 item. **Build status:** the
+locked 🔒 Reply control and the `feature` property are new work items.
+
+### R7 — Edit interests
+
+**Trigger:** ✎ Edit interests on the You screen.
+
+**The user must be able to:** reopen the picker **pre-filled** with current
+interests; add/remove freely subject to the same ≥2 minimum; **cancel**
+without consequence; save and land back with a confirmation toast.
+
+**Business rules:** editing never resets learning — swipes, Kept, seen, and
+existing scores survive untouched. **A newly added topic jumps straight to
+parity with the user's strongest interest:** its score is set to the current
+**maximum topic score** (or the +4 head-start, whichever is higher) — never
+a token bonus drowned out by weeks of tuning. **Guaranteed visibility:** at
+least one card from the newly added topic is served **within the next 3
+feed draws** (deterministic injection, once per added topic, then normal
+weighted draw resumes). The tuning meter reflects the jump immediately.
+Re-adding a removed topic follows the same rule. Removing an interest does
+**not** zero its score — the feed de-emphasizes it via future Pass swipes,
+and the floor weight keeps it servable (consistent with R2's no-hard-filter
+rule). No bonus farming: re-selecting an already-chosen topic grants
+nothing.
+
+**Output:** interests + adjusted scores persist; `interests_edit_started`,
+`interests_updated {added, removed, interest_count}`; person properties
+update for cohort segmentation.
+
+**Exceptions:** below 2 selections disables Save with the "pick N more"
+affordance. Cancel discards pending selection including would-have-been
+bonuses. **Build status:** set-to-max on add and the next-3-draws injection
+are new work items (today's code grants only the flat +4).
+
+### R8 — Returning-user migration cue
+
+**Trigger:** an onboarded user opens the app with stored state created
+under older interaction semantics — detected via a `stateVersion` field in
+the persisted localStorage blob (absent = the old "right swipe = Keep"
+build). No account needed: the localStorage blob *is* the user record;
+detection is reading a field from data we already store.
+
+**The system must:** show a **one-time, dismissible notice** before the
+first swipe of that session — one card-sized message: *"Swipes changed:
+right = Interested (doesn't save). 🔖 saves — and now auto-advances the
+card."* Shown exactly once per semantics change (dismissal persists a flag
+in the same blob); never shown to fresh users. Dismissal is an explicit tap
+— its whole job is preventing Rohan's silent habit break (N2).
+
+**Business rules:** any release that changes what an existing gesture does
+must bump `stateVersion` and ship a cue through this mechanism — a standing
+rule, not a one-off. The cue never blocks reading the card underneath and
+never fires mid-deck. Data migration itself stays silent and lossless; only
+*semantics* changes get a voice.
+
+**Output:** `stateVersion` written on every save; `migration_notice_shown`
+/ `migration_notice_dismissed {from_version, to_version}` — the gap between
+the two counts is itself a signal.
+
+**Exceptions:** prototype reset → fresh state at current version, no
+notice. Corrupt state → fresh onboarding (existing behavior), no notice.
+Scope truth: per-browser/per-device, same as all persistence today; once
+R9 ships, `stateVersion` moves into the user's server record and gains
+cross-device reach. **Build status:** entirely new.
+
+### R9 — Sign-in gate after 7 free swipes
+
+**Trigger:** an anonymous user commits their **8th swipe-action** (plain
+swipes and saves both count — a save is a swipe per R4).
+
+**The system must:** let the first **7 swipe-actions** happen with zero
+friction — anonymous, localStorage-backed. On the 8th attempt, block the
+action and show the **auth wall**: sign up / sign in (Supabase Auth; email
+OTP or Google — no passwords to manage), with the card in hand still
+visible underneath. **Merge, never discard:** on signup, all anonymous
+state — swipes, Kept, scores, seen, comments — migrates into the account;
+signing up must feel like keeping progress, not restarting. On sign-in
+(existing account, new device), server state wins; anonymous local swipes
+merge additively.
+
+**Business rules:** the gate blocks **swiping and saving only** — reading
+the card in hand, the Kept pile, and Discover browsing stay open. We gate
+participation, not access to what they've already earned; per NG3, the
+wall states plainly what it is (no manufactured urgency). Once
+authenticated the gate never reappears. G1 is preserved (first card and
+first 7 swipes need no account); G4's cross-device caveat is **resolved**
+for signed-in users.
+
+**Output:** `signup_gate_shown {swipe_count: 7}`, `signup_completed` /
+`signin_completed`, `signup_abandoned` (wall dismissed → read-only).
+PostHog `identify()` links the anonymous `distinct_id` to the account —
+pre- and post-signup behavior joins into one funnel.
+
+**Exceptions:** auth service unreachable → the wall says so; reading stays
+open, swipes stay blocked (fail closed on the gate, open on reading). A
+signed-in user clearing localStorage loses nothing — server state restores
+on sign-in. **Build status:** entirely new and the first hard backend
+dependency — Supabase project, Auth config, users table, state-merge
+logic. Biggest single work item; sequence against R10 in §9.
+
+### R10 — Content pipeline (async, server-side)
+
+**Trigger:** scheduled runs (e.g., daily) and manual triggers — never a
+user action; per R2, generation is never in the serving path.
+
+**The system must:** (1) query the Guardian API for trending topics/stories
+mapped to Curio's taxonomy (India-first lens on global data); (2) fetch
+**full text** to ground on — Wikipedia backbone, Guardian article text for
+news-anchored cards, TMDB for film — never stats/snippet APIs, because the
+verify step needs source paragraphs; (3) **Sonnet generates** a ~150-word
+card from that source only, adding no fact not present in it, with title,
+topic/subtopic, `source_url`; (4) **Haiku verifies** — *"does this card
+contain any claim not directly supported by the source text below?"* — zero
+flags → `verified: true`; any flag → regenerate (bounded retries) then
+discard. A card that never passes never exists as far as users are
+concerned (G3); (5) verified cards land in the Supabase `cards` table,
+immediately drawable by R2/R5.
+
+**Business rules:** all API keys (Anthropic, Guardian, TMDB) live
+server-side only — serverless functions; nothing key-bearing ships to the
+client (unlike PostHog's write-key, these are real secrets). Model split is
+fixed: Sonnet generates, Haiku verifies — the verifier is never the
+generator (no self-grading). No card without `source_url`, structurally.
+Per-run volume is capped (cost control) and spread across topics — trending
+input must not collapse the library into one topic (supply-side diversity;
+the serving-side floor already exists in R2).
+
+**Output:** new verified cards in the store; per-run pipeline telemetry:
+generated / passed / flagged-retried / discarded counts and per-card cost —
+the "AI evals" story Session 5 expects, measured from day one.
+
+**Exceptions:** Guardian down → run on Wikipedia/TMDB (trending is an
+enhancer, not a dependency). Verification down → generation halts; nothing
+unverified is ever stored "to fix later" — fail closed. A topic yielding no
+passable cards is logged loudly, not padded. **Build status:** entirely
+new — the whole Phase-2 backend; with R9, defines the Session-4 build.
+
+### R11 — Notifications *(parked — post-MVP)*
+
+Reply notifications and trending-content notifications were specced in
+discussion (opt-in per type, hard frequency caps, genuine-payload-only copy
+per NG3, R9-dependent identity, R10-triggered sends) but are **deferred**:
+the MVP is a web app, and iOS Safari requires home-screen install for web
+push — most of the target audience couldn't receive them. Revisit alongside
+any future PWA/native decision. R6's "no reply notifications" scope line
+stands for this release.
 
 ## 5. Error Scenarios — *pending*
 
