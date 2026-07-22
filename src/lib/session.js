@@ -152,8 +152,27 @@ export async function ensureDisplayName(user) {
       .maybeSingle()
     if (profile?.display_name) return
 
+    // Where the name lives depends on HOW they signed in, and the difference
+    // is easy to miss because both flows produce a valid signed-in user:
+    //
+    //   signInWithOAuth — Supabase merges the Google profile into
+    //                     user_metadata, so the name is there.
+    //   linkIdentity    — attaches the identity and leaves the existing user's
+    //                     metadata untouched. For someone who started
+    //                     anonymous that metadata is empty ({email_verified}),
+    //                     and the name is only on the identity.
+    //
+    // Since linking is our primary path, identity_data is where to look first.
+    const identity = (user.identities ?? []).find((i) => i.identity_data)?.identity_data ?? {}
     const meta = user.user_metadata ?? {}
-    const full = (meta.full_name || meta.name || meta.given_name || '').trim()
+    const full = (
+      identity.full_name ||
+      identity.name ||
+      meta.full_name ||
+      meta.name ||
+      meta.given_name ||
+      ''
+    ).trim()
     const first = full.split(/\s+/)[0]
     if (!first) return
 
