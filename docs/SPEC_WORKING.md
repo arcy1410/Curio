@@ -6,9 +6,9 @@ Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
 guides the build; the graded individual Product Specification (4N) is written
 separately, in the student's own words.*
 
-**Status:** §1–8 complete (Goals · Non-Goals · Narratives · Requirements ·
-Error Scenarios · Telemetry · Acceptance Criteria · NFRs) ·
-Prioritization: in progress
+**Status:** COMPLETE — all nine sections (Goals · Non-Goals · Narratives ·
+Requirements · Error Scenarios · Telemetry · Acceptance Criteria · NFRs ·
+Prioritization). Build proceeds in §9's WSJF order.
 
 ---
 
@@ -927,4 +927,43 @@ Every number is tagged: **[measured]** (from our build), **[derived]**
   by schedule, not user count — user growth costs ~zero marginal
   generation **[derived]**.
 
-## 9. Prioritization — *pending*
+## 9. Prioritization (WSJF)
+
+**WSJF = (Business Value + Time Criticality + Risk Reduction/Opportunity
+Enablement) ÷ Job Size**, scored relative (1–2–3–5–8–13–20) across the work
+items this spec created.
+
+| # | Work item | BV | TC | RR/OE | Sum | Size | **WSJF** |
+|---|---|---|---|---|---|---|---|
+| 1 | Session-length event (§6) | 5 | 8 | 2 | 15 | 1 | **15.0** |
+| 2 | Kept full-card reopen (G4) | 13 | 8 | 5 | 26 | 2 | **13.0** |
+| 3 | Save auto-swipe + 20-cap (R4) | 8 | 8 | 3 | 19 | 3 | **6.3** |
+| 4 | Migration cue (R8) | 5 | 5 | 2 | 12 | 2 | **6.0** |
+| 5 | Content pipeline (R10) | 20 | 13 | 20 | 53 | 13 | **4.1** |
+| 6 | New-topic parity boost (R7) | 5 | 2 | 1 | 8 | 2 | **4.0** |
+| 7 | Locked nested-reply (R6) | 3 | 1 | 2 | 6 | 2 | **3.0** |
+| 8 | 30s dwell marking (R5) | 3 | 2 | 3 | 8 | 3 | **2.7** |
+| 9 | Swipe undo (R3 gap) | 5 | 2 | 1 | 8 | 3 | **2.7** |
+| 10 | Auth gate + merge (R9) | 13 | 8 | 13 | 34 | 13 | **2.6** |
+
+**Non-obvious scores, reasoned:**
+
+- **Session-length tops the list because the data can't be backfilled** —
+  every week without it is usage history lost forever (the DAU/MAU
+  comparison depends on it). Tiny job, perishable opportunity.
+- **Kept reopen scores BV 13** — it's load-bearing for the North Star
+  itself: "cards kept & *retained*" is unmeasurable and unrewarding if a
+  kept card can't be re-read.
+- **Pipeline has the highest raw value (53) but lands mid-table** — WSJF
+  working as designed (weighted *shortest* job first), not a claim it's
+  unimportant. It remains the biggest single bet.
+- **Auth lands last, honestly:** gating swipes at 7 makes little sense
+  while the library is 21 cards — the gate monetizes demonstrated interest
+  in *fresh* content. Sequencing constraint, not a score: **R10 before R9.**
+- **R4 + R8 ship together** — the save-semantics change *is* the next
+  migration event; shipping it without its cue would recreate Rohan's
+  story (N2) deliberately.
+
+**Build order:** quick wins (items 1–4, roughly one week together) →
+pipeline (R10) → parity boost / locked reply / dwell alongside → auth gate
+(R9) last, once content justifies it.
