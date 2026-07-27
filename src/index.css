@@ -1533,3 +1533,39 @@ button {
   background: var(--rose);
   transition: width 0.3s var(--ease);
 }
+
+/* ── Preference row + switch ─────────────────────────────────── */
+.pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.switch {
+  width: 52px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--line);
+  padding: 3px;
+  display: flex;
+  transition: background 0.2s var(--ease);
+}
+.switch.on {
+  background: var(--rose);
+}
+.switch .knob {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface);
+  transition: transform 0.2s var(--ease);
+}
+.switch.on .knob {
+  transform: translateX(22px);
+}

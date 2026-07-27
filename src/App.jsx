@@ -22,6 +22,7 @@ import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
+import { storedTheme, setTheme } from './lib/theme.js'
 import {
   currentStreak,
   longestStreak,
@@ -37,6 +38,7 @@ export default function App() {
   const [commentsCard, setCommentsCard] = useState(null)
   const [toast, setToast] = useState(null)
   const [editingInterests, setEditingInterests] = useState(false)
+  const [theme, setThemeState] = useState(storedTheme)
 
   // Card library. Starts as the bundled seed set so the first paint is
   // instant and the feed is never empty, then swaps to the Supabase store
@@ -567,6 +569,12 @@ export default function App() {
             state={state}
             authUser={authUser}
             signedIn={signedIn}
+            theme={theme}
+            onToggleTheme={() => {
+              const next = theme === 'dark' ? 'light' : 'dark'
+              setTheme(next)
+              setThemeState(next)
+            }}
             onSignIn={() => setWallOpen(true)}
             onSignOut={async () => {
               await signOut()

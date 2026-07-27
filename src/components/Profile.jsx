@@ -16,6 +16,8 @@ export default function Profile({
   signedIn,
   onSignIn,
   onSignOut,
+  theme = 'light',
+  onToggleTheme = () => {},
 }) {
   const swipeCount = state.swipes.length
   const keepCount = state.kept.length
@@ -156,7 +158,26 @@ export default function Profile({
         <div className="fine">Prototype — no payment is processed.</div>
       </div>
 
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
+      {/* Light is Curio's default; dark is a mirror of it for people who
+          prefer one. An explicit switch rather than following the OS, so the
+          product is met in the skin it was designed in. */}
+      <div className="pref-row">
+        <span>Dark mode</span>
+        <button
+          className={`switch ${theme === 'dark' ? 'on' : ''}`}
+          role="switch"
+          aria-checked={theme === 'dark'}
+          aria-label="Dark mode"
+          onClick={() => {
+            haptic.tap()
+            onToggleTheme()
+          }}
+        >
+          <span className="knob" />
+        </button>
+      </div>
+
+      <div style={{ marginTop: 20, textAlign: 'center' }}>
         <button
           className="btn-ghost"
           onClick={() => {
