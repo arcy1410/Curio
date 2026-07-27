@@ -9,12 +9,8 @@
 // prose or rely on the model formatting JSON correctly by luck.
 
 import Anthropic from '@anthropic-ai/sdk'
-import {
-  geminiGenerateCard,
-  geminiVerifyCard,
-  GEMINI_GENERATOR,
-  GEMINI_VERIFIER,
-} from './gemini.js'
+import { geminiGenerateCard, geminiVerifyCard } from './gemini.js'
+import { openaiGenerateCard, openaiVerifyCard } from './openai.js'
 
 const GENERATOR = 'claude-sonnet-5'
 const VERIFIER = 'claude-haiku-4-5'
@@ -27,20 +23,43 @@ const WORD_MAX = 170
 /**
  * Which provider runs the generate/verify pair.
  *
- * Anthropic (Sonnet writes, Haiku checks) is the target design and wins
- * whenever its key is present. Gemini is an interim stand-in so the pipeline
- * isn't blocked on billing — same two-model structure, same prompts, weaker
- * independence (both verifier and generator come from one family).
+ * Preference order when nothing is forced:
+ *   1. Anthropic — the target design (Sonnet writes, Haiku checks).
+ *   2. OpenAI — paid, so no free-tier quota cliff; the reliable interim.
+ *   3. Gemini — free, but quota-capped; the fallback interim.
  *
- * Set PROVIDER=gemini to force Gemini even when an Anthropic key exists.
+ * Force any of them with PROVIDER=anthropic|openai|gemini.
  */
 export function activeProvider() {
   const forced = process.env.PROVIDER
-  if (forced === 'gemini') return 'gemini'
-  if (forced === 'anthropic') return 'anthropic'
+  if (['anthropic', 'openai', 'gemini'].includes(forced)) return forced
   if (process.env.ANTHROPIC_API_KEY) return 'anthropic'
+  if (process.env.OPENAI_API_KEY) return 'openai'
   if (process.env.GEMINI_API_KEY) return 'gemini'
-  throw new Error('no model provider configured (set ANTHROPIC_API_KEY or GEMINI_API_KEY)')
+  throw new Error('no model provider configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY or GEMINI_API_KEY)')
+}
+
+// The generate/verify pair for a provider.
+const PROVIDERS = {
+  anthropic: { gen: null, check: null }, // filled below (defined later in file)
+  openai: { gen: openaiGenerateCard, check: openaiVerifyCard },
+  gemini: { gen: geminiGenerateCard, check: geminiVerifyCard },
+}
+
+/**
+ * The spec's core trust mechanism is an INDEPENDENT check — the verifier must
+ * not be the generator, and ideally not even the same vendor. Same-vendor
+ * pairs (both OpenAI, both Gemini) are the honestly-weaker interim.
+ *
+ * VERIFY_PROVIDER lets the verify step run on a DIFFERENT vendor from generate
+ * — e.g. PROVIDER=openai VERIFY_PROVIDER=gemini gives a genuine cross-vendor
+ * pair, stronger independence than even the same-vendor Anthropic target. It
+ * trades reliability for that: the verify half then depends on the chosen
+ * provider's availability (Gemini's free tier can 429).
+ */
+function verifyProvider() {
+  const v = process.env.VERIFY_PROVIDER
+  return ['anthropic', 'openai', 'gemini'].includes(v) ? v : null
 }
 
 // Standard list prices per million tokens. Used for the per-card cost figure
@@ -231,9 +250,16 @@ Does this card contain any claim not directly supported by the source text above
  * unverified card — "fail closed" is the entire point of the gate.
  */
 export async function generateVerifiedCard({ source, topicName, subtopicName, maxRetries = 2 }) {
-  const provider = activeProvider()
-  const gen = provider === 'gemini' ? geminiGenerateCard : generateCard
-  const check_ = provider === 'gemini' ? geminiVerifyCard : verifyCard
+  // Anthropic's pair lives in this file (generateCard/verifyCard); the others
+  // are imported. PROVIDERS.anthropic is wired here rather than at definition
+  // because those functions are declared later in the module.
+  PROVIDERS.anthropic.gen = generateCard
+  PROVIDERS.anthropic.check = verifyCard
+
+  const genProvider = activeProvider()
+  const chkProvider = verifyProvider() || genProvider
+  const gen = PROVIDERS[genProvider].gen
+  const check_ = PROVIDERS[chkProvider].check
 
   let cost = 0
   let attempts = 0

@@ -1,0 +1,208 @@
+// OpenAI provider for the R10 pipeline.
+//
+// Why this exists alongside gemini.js: the Gemini free tier is quota-capped
+// (a real pipeline run hit daily 429s), which caps how many cards a day the
+// pipeline can make. This key is PAID, so it removes the quota cliff — the
+// pipeline can run to completion instead of stalling mid-run.
+//
+// Facts established by probing THIS key against a real card, not from memory
+// (the lesson from gemini.js: a model that ListModels returns is not
+// necessarily one you should use):
+//   • gpt-4.1-mini generates a faithful ~150-word card in ~1.2s. The gpt-5
+//     family also works but spends 9s and up to 1600 tokens REASONING about a
+//     task — grounded summarisation — that needs no reasoning. Wrong tool.
+//   • The verifier MUST be a reasoning model. gpt-4o-mini and gpt-4.1-mini
+//     both FALSE-POSITIVED on a real 24k-char source — asked to check "known
+//     as the Paris of India", a phrase literally in the article, they flagged
+//     it as unsupported because they don't retrieve reliably over long
+//     context. A verifier that rejects faithful claims burns good cards and
+//     wastes spend, which is worse than plumbing that doesn't run. gpt-5-mini
+//     (which reasons over the source) finds the phrase and does not flag it —
+//     at ~7s per check versus ~1s, a cost the verify step is worth paying.
+//     (My short Taj-Mahal probe missed this: probe-sized sources don't
+//     surface the retrieval failure. Only a real article did.)
+//   • Structured output uses response_format:{type:'json_schema',strict:true}.
+//
+// HONEST CAVEAT, same as Gemini: generator and verifier are both OpenAI, so
+// this is a weaker independent check than a cross-vendor pair. A genuinely
+// independent arrangement — OpenAI generates, Gemini verifies — is available
+// via VERIFY_PROVIDER and is the stronger version of the spec's verify step.
+
+const BASE = 'https://api.openai.com/v1/chat/completions'
+
+export const OPENAI_GENERATOR = 'gpt-4.1-mini'
+export const OPENAI_VERIFIER = 'gpt-5-mini' // reasoning verifier — see note above
+
+// Approximate list prices per million tokens (paid key — real cost, unlike
+// Gemini's $0). Rounded/estimated, and deliberately not promotional rates: an
+// over-estimate is the safe direction for the per-card cost figure R10
+// records. gpt-5-mini's reasoning tokens bill as output, so verify is the
+// pricier half despite the smaller prompt.
+const PRICING = {
+  [OPENAI_GENERATOR]: { in: 0.4 / 1e6, out: 1.6 / 1e6 },
+  [OPENAI_VERIFIER]: { in: 0.25 / 1e6, out: 2.0 / 1e6 },
+}
+
+function costOf(model, usage) {
+  const p = PRICING[model]
+  if (!p || !usage) return 0
+  return (usage.prompt_tokens || 0) * p.in + (usage.completion_tokens || 0) * p.out
+}
+
+async function callOpenAI({ model, system, user, schema, schemaName, maxTokens = 1200, attempts = 3 }) {
+  const key = process.env.OPENAI_API_KEY
+  if (!key) throw new Error('OPENAI_API_KEY not set')
+
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    response_format: { type: 'json_schema', json_schema: { name: schemaName, strict: true, schema } },
+    max_completion_tokens: maxTokens,
+  }
+
+  let lastError
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (attempt > 0) {
+      const delay = 600 * 2 ** (attempt - 1) * (0.75 + Math.random() * 0.5)
+      await new Promise((r) => setTimeout(r, delay))
+    }
+    try {
+      const res = await fetch(BASE, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(90_000),
+      })
+
+      // 429 (rate/quota) and 5xx are transient; retry. 4xx else is a real
+      // client error — surface it rather than retrying a request that will
+      // fail identically.
+      if (res.status === 429 || res.status >= 500) {
+        lastError = new Error(`openai ${res.status}`)
+        continue
+      }
+      const text = await res.text()
+      if (!res.ok) throw new Error(`openai ${res.status}: ${text.slice(0, 200)}`)
+
+      const data = JSON.parse(text)
+      const choice = data.choices?.[0]
+      // A refusal or a length-truncated response yields no usable content.
+      if (choice?.finish_reason === 'length') {
+        lastError = new Error('truncated (hit max_completion_tokens)')
+        continue
+      }
+      const out = choice?.message?.content
+      if (!out) throw new Error(`no content: ${text.slice(0, 200)}`)
+
+      return {
+        parsed: JSON.parse(out),
+        model,
+        usage: data.usage,
+        cost: costOf(model, data.usage),
+      }
+    } catch (err) {
+      if (/openai 4/.test(err.message)) throw err // client error — don't retry
+      lastError = err
+    }
+  }
+  throw new Error(`openai call failed after ${attempts} attempts: ${lastError?.message}`)
+}
+
+// Schemas — OpenAI strict mode requires additionalProperties:false and every
+// property listed in `required`.
+const CARD_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    body: { type: 'string' },
+  },
+  required: ['title', 'body'],
+  additionalProperties: false,
+}
+
+const VERDICT_SCHEMA = {
+  type: 'object',
+  properties: {
+    unsupported_claims: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['unsupported_claims'],
+  additionalProperties: false,
+}
+
+// Prompts are intentionally identical to the Anthropic/Gemini ones — swapping
+// providers changes the model, never the editorial rules.
+const GENERATE_SYSTEM = `You write short, factual knowledge cards for Curio, a source-grounded reading app for Indian readers aged 18-30.
+
+Rules, in order of importance:
+1. Every single fact in the card MUST appear in the source text provided. Add nothing — no context you happen to know, no dates, no numbers, no names that are not in the source. If the source does not say it, it does not go in the card.
+2. If you are unsure whether something is in the source, leave it out.
+3. Write ~150 words of clean prose in one paragraph. No bullet points, no headings, no markdown.
+4. Lead with the most surprising or concrete thing, not with background.
+5. Plain, direct language. Explain jargon in-line. Do not address the reader as "you", and do not editorialise.
+
+Your output is checked against the source by a separate fact-checking model. Claims you invent will be caught and the card discarded.`
+
+const VERIFY_SYSTEM = `You are a fact-checker. You are given a source text and a card written from it.
+
+Your only job: list every claim in the card that is NOT directly supported by the source text.
+
+Guidance:
+- A claim is supported only if the source text states it. Do not use your own knowledge to excuse a claim — a fact can be true in the world and still be unsupported by THIS source.
+- Rewording and summarising are fine. A claim is supported if the source says the same thing in different words.
+- Reasonable paraphrase and compression are not errors. Added specifics are: a date, number, name, or causal link that the source does not contain is unsupported.
+- If every claim is supported, return an empty array.
+
+Be strict. A card that passes will be shown to readers as fact-checked.`
+
+export async function openaiGenerateCard({ source, topicName, subtopicName }) {
+  const r = await callOpenAI({
+    model: OPENAI_GENERATOR,
+    schemaName: 'card',
+    schema: CARD_SCHEMA,
+    system: GENERATE_SYSTEM,
+    user: `Topic: ${topicName}${subtopicName ? ` › ${subtopicName}` : ''}
+Source title: ${source.title}
+
+<source_text>
+${source.text.slice(0, 12000)}
+</source_text>
+
+Write one Curio card grounded strictly in the source text above.`,
+    maxTokens: 1200,
+  })
+  return { title: r.parsed.title, body: r.parsed.body, model: r.model, usage: r.usage, cost: r.cost }
+}
+
+export async function openaiVerifyCard({ source, card }) {
+  const r = await callOpenAI({
+    model: OPENAI_VERIFIER,
+    schemaName: 'verdict',
+    schema: VERDICT_SCHEMA,
+    system: VERIFY_SYSTEM,
+    user: `<source_text>
+${source.text.slice(0, 12000)}
+</source_text>
+
+<card>
+Title: ${card.title}
+
+${card.body}
+</card>
+
+Does this card contain any claim not directly supported by the source text above? List the unsupported claims.`,
+    // Generous: gpt-5-mini spends reasoning tokens (billed as completion) before
+    // emitting the verdict, and a truncated reasoning pass yields no output.
+    maxTokens: 4000,
+  })
+  const unsupportedClaims = r.parsed.unsupported_claims ?? []
+  return {
+    verified: unsupportedClaims.length === 0,
+    unsupportedClaims,
+    model: r.model,
+    usage: r.usage,
+    cost: r.cost,
+  }
+}

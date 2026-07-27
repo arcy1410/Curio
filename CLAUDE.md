@@ -164,19 +164,29 @@ Supabase swap is mechanical.
 **Model split (keeps per-card runtime cost low, verify step uncompromised):**
 Opus builds the app · **Sonnet generates** cards · **Haiku fact-checks** them.
 
-**Interim provider (2026-07-22): Gemini, not Anthropic.** Anthropic API credits
-are pending an international payment, so the pipeline currently runs on the
-Gemini free tier — `gemini-2.5-flash` generates, `gemini-3.5-flash-lite`
-verifies (`api/_lib/gemini.js`). `activeProvider()` in `api/_lib/cardgen.js`
-picks Anthropic automatically the moment `ANTHROPIC_API_KEY` is set; no other
-change is needed to revert. Same prompts, same two-model structure, so this
-swaps the model without touching the editorial rules.
+**Interim provider (2026-07-22): OpenAI, not Anthropic.** Anthropic API credits
+are pending an international payment. The pipeline runs on OpenAI (`api/_lib/openai.js`):
+`gpt-4.1-mini` generates, **`gpt-5-mini` verifies**. `activeProvider()` in
+`api/_lib/cardgen.js` prefers Anthropic → OpenAI → Gemini automatically, so
+setting `ANTHROPIC_API_KEY` reverts to the target design with no code change.
+Same prompts, same two-model structure — the model swaps, the editorial rules
+don't. OpenAI is preferred over the Gemini free tier because it's paid: no
+quota cliff (a Gemini run hit daily 429s and stalled). `api/_lib/gemini.js`
+remains as the free fallback.
 
-**Be honest about the weakness:** generator and verifier are now two models
-from *one family*, which is a weaker independent check than a cross-vendor
-pair. It held up under adversarial testing (it catches invented facts, subtle
-number swaps, and — hardest — claims that are true in reality but absent from
-the source), but Sonnet+Haiku remains the target design, not a nice-to-have.
+**The verifier must be a reasoning model — this was the non-obvious finding.**
+`gpt-4o-mini`/`gpt-4.1-mini` as verifier FALSE-POSITIVE on real sources: asked
+to check "known as the Paris of India", a phrase literally in the Wikipedia
+article, they flag it unsupported because they don't retrieve reliably over
+12k+ chars. A verifier that rejects faithful claims burns good cards and spend.
+`gpt-5-mini` reasons over the source and gets it right (~7s vs ~1s — worth it).
+A short probe missed this; only a full article surfaced it.
+
+**Be honest about the weakness:** generator and verifier are both OpenAI — one
+vendor, so a weaker independent check than a cross-vendor pair. `VERIFY_PROVIDER`
+enables a genuine cross-vendor split (e.g. `PROVIDER=openai VERIFY_PROVIDER=gemini`),
+stronger independence but trading reliability (the verify half then rides
+Gemini's flaky free tier). Sonnet+Haiku remains the target, not a nice-to-have.
 
 ## MVP scope — BUILD these
 
