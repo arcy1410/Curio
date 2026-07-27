@@ -622,15 +622,20 @@ button {
   line-height: 1.06;
   letter-spacing: -0.02em;
   margin: 0;
+  /* Never let the question grow so tall that it squeezes the answer panel
+     out of the card and clips the footer. */
+  flex: none;
+  max-height: 44%;
+  overflow: hidden;
 }
 
 .answer-panel {
   flex: 1;
   border-radius: 18px;
   display: flex;
-  /* Never let a long question crush this to nothing — the Reveal button would
-     spill out of the card. */
-  min-height: 132px;
+  /* A floor, but a modest one: too high and a long question pushes the footer
+     out of a fixed-height card. The panel scrolls its own overflow. */
+  min-height: 96px;
   overflow: hidden;
   /* Unrevealed: a dashed outline reads as "something goes here" rather than
      as a disabled control. */
@@ -1973,12 +1978,15 @@ button {
 .deck .swipe {
   position: absolute;
   inset: 0;
-  /* react-tinder-card drives the drag from pointer events, and without this
-     the browser claims a horizontal drag as its own pan gesture and fires
-     pointercancel — the card follows the finger, snaps back, and the swipe
-     never commits. That is the "swipe comes back, have to swipe twice" bug.
-     Scrollable children re-enable vertical panning for themselves. */
-  touch-action: none;
+  /* pan-y, NOT none.
+     Without any touch-action the browser claims a horizontal drag as its own
+     pan and fires pointercancel — the card snaps back and the swipe never
+     commits. But `none` over-corrects: touch-action restrictions apply to
+     descendants, so it also killed vertical scrolling inside the revealed
+     answer. pan-y is the exact fit — the browser keeps vertical panning (so
+     the answer panel scrolls) and hands horizontal gestures to the swipe
+     handler. */
+  touch-action: pan-y;
 }
 
 /* ── Action row: Later · Go deeper · Keep ────────────────────── */
