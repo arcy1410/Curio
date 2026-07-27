@@ -419,6 +419,16 @@ viewport-dwell seen-marking (pausing on background, biased toward
 under-marking per E4) and the surface-dependent save weight are new work
 items. Known constraint (G5): several subtopics currently hold 1 card.
 
+**Card footer, revised 2026-07.** "Why it's true" links **directly to the
+source**, not to the detail sheet. It previously opened the sheet — which is
+what "Go deeper" already does, making one of the two controls meaningless.
+Split by destination: **Go deeper** = Curio's own explanation and receipts;
+**Why it's true ↗** = the evidence itself, one tap away. The trust promise
+should have the shortest path in the product, and the arrow distinguishes
+leaving (↗) from navigating (→). `source_link_clicked` carries
+`surface: 'why_its_true' | 'detail'` so the two routes are countable
+separately.
+
 ### R6 — Comments
 
 **Trigger:** 💬 on any card (feed, Discover, or Kept).

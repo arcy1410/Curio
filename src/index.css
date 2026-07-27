@@ -765,6 +765,7 @@ button {
   padding: 0;
   white-space: nowrap;
   flex: none;
+  text-decoration: none;
   transition: color 0.15s var(--ease);
 }
 .why-true:active {

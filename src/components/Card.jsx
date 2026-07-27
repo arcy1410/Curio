@@ -44,41 +44,43 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
 
   const footer = (
     <div className="card-foot">
-      {/* Every control inside the card takes pointerdown — react-tinder-card
-          swallows taps on touch devices before a click is synthesised. */}
+      {/* Provenance stays on the face — it is the trust promise — but as a
+          label now, since the link beside it goes to the same place. When a
+          card has discussion, that signal takes the slot instead: it is the
+          thing a reader can't otherwise know is there. */}
+      <span className="source">
+        {commentCount > 0
+          ? `${commentCount} note${commentCount === 1 ? '' : 's'} · ${hostOf(card.source_url)}`
+          : hostOf(card.source_url)}
+      </span>
+      {/* Two items only. Three (source · discuss · why-it's-true) overflowed
+          the card at phone width and wrapped outside its rounded corner.
+          Comments move into the detail sheet, which has room and is where
+          someone reading closely already is. */}
+      {/* Goes to the SOURCE, not the sheet. It used to open the detail sheet,
+          which is exactly what "Go deeper" does — two controls, one
+          destination. Pointing it at the source makes the pair meaningful:
+          Go deeper = Curio's own explanation, Why it's true = the evidence
+          itself, in one tap. That second one is the trust promise, so it
+          should be the shortest path in the product. */}
       <a
-        className="source"
+        className="why-true"
         href={card.source_url}
         target="_blank"
         rel="noreferrer"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
-          // Engagement with the source = engagement with the trust mechanism.
           track(EV.SOURCE_LINK_CLICKED, {
             card_id: card.id,
             topic: card.topic,
             host: hostOf(card.source_url),
+            surface: 'why_its_true',
           })
         }}
       >
-        {hostOf(card.source_url)}
+        Why it&apos;s true ↗
       </a>
-      {/* Two items only. Three (source · discuss · why-it's-true) overflowed
-          the card at phone width and wrapped outside its rounded corner.
-          Comments move into the detail sheet, which has room and is where
-          someone reading closely already is. */}
-      <button
-        className="why-true"
-        onPointerDown={(e) => {
-          e.stopPropagation()
-          e.preventDefault()
-          onGoDeeper?.()
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {commentCount > 0 ? `${commentCount} · Why it's true →` : "Why it's true →"}
-      </button>
     </div>
   )
 
