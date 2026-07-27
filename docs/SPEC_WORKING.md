@@ -140,29 +140,13 @@ randomized rare "special" cards to induce compulsive checking), or push
 notifications designed to create anxiety/FOMO rather than deliver a genuine
 fact.
 
-**Amended 2026-07 — a streak now exists, and this is the honest account.**
-The original text ruled out "streak mechanics" outright. The redesign added
-one, so the blanket ban is no longer true and pretending otherwise would be
-worse than the streak itself. What NG3 now forbids is the part that actually
-does harm — **loss aversion** — not the counter:
-
-| Built | Refused |
-|---|---|
-| A daily set the user sizes (3/5/10) | Any goal the product sets for them |
-| A count of days completed | Any "don't lose your streak" prompt |
-| One grace day, so a single miss costs nothing | Streak-protection notifications |
-| Streak derived from activity | A stored counter that could be gamed |
-| The set ENDS when finished | Any reward for exceeding it |
-
-The distinction we are defending: a streak that **records** a habit is a
-mirror; a streak that **threatens** one is a lever. Curio built the mirror.
-The test suite enforces the difference — `tests/streak.test.mjs` asserts that
-exceeding the daily goal earns nothing and that one missed day is forgiven.
-
-**The guardrail that would falsify this:** `session_ended.duration_s`. If
-streaks produce *longer* sessions rather than *more regular short* ones, the
-mechanic is doing the harm NG3 exists to prevent, and it should be removed —
-that is a live commitment, not a hedge.
+**Amended 2026-07.** NG3 originally ruled out streak mechanics outright; a
+streak now exists. What NG3 forbids is **loss aversion**, not the counter: no
+"don't lose your streak" prompts, no streak notifications, one grace day so a
+single miss costs nothing, and no reward for exceeding the daily goal (asserted
+in `tests/streak.test.mjs`). The guardrail that would falsify this is
+`session_ended.duration_s` — if streaks produce longer sessions rather than
+more regular short ones, the mechanic comes out.
 
 **Prevents:** the assumption that "more engagement" is automatically good.
 Curio's own North Star (cards kept & retained per weekly active user) and
