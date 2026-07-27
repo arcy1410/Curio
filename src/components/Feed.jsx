@@ -288,16 +288,18 @@ export default function Feed({
 
         {deck.length > 0 && (
           <>
-            {/* Three controls, per the handoff: Later · Go deeper · Keep.
-                The old five-emoji row was a holdover — it crowded the deck and
-                gave equal weight to actions that aren't equally important.
-                "Go deeper" is the wide one because opening the source is the
-                behaviour this product most wants to encourage. */}
+            {/* FOUR controls, not the handoff's three.
+                The design brief says "Keep, don't like" and merges the two —
+                but Curio's spec separates them deliberately (R3/R4), and that
+                separation is the product: Like tunes the feed and costs
+                nothing, Keep commits a card to a pile capped at 20. Collapsing
+                them means every card you found interesting also spends a slot
+                you were saving for the ones worth re-reading. */}
             <div className="actions">
               <button
                 className="act-circle"
                 onClick={() => trigger('pass')}
-                aria-label="Later"
+                aria-label="Later — pass this card"
               >
                 Later
               </button>
@@ -313,16 +315,24 @@ export default function Feed({
               </button>
 
               <button
+                className="act-circle like"
+                onClick={() => trigger('interested')}
+                aria-label="Interested — more like this"
+              >
+                Like
+              </button>
+
+              <button
                 className={`act-circle keep ${topSaved ? 'on' : ''}`}
                 onClick={saveTop}
-                aria-label={topSaved ? 'Saved' : 'Keep'}
+                aria-label={topSaved ? 'Saved to Kept' : 'Keep — save to your pile'}
               >
                 {topSaved ? 'Kept' : 'Keep'}
               </button>
             </div>
 
             <div className="hint-row">
-              <span className="action-hint mono">drag the card · ← later · keep →</span>
+              <span className="action-hint mono">← later · like → · keep saves it</span>
               {/* R3: visible-but-locked, kept out of the primary row so it
                   doesn't compete with the three actions that actually work. */}
               <button

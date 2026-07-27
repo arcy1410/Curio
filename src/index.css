@@ -1967,7 +1967,7 @@ button {
 .actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 16px 0 8px;
 }
 .act-circle {
@@ -1985,13 +1985,25 @@ button {
 .act-circle:active {
   transform: scale(0.94);
 }
+/* Like tunes the feed; Keep spends one of 20 saves. The weight difference is
+   deliberate — a filled control should cost something. */
+.act-circle.like {
+  border-color: var(--line);
+  color: var(--ink);
+}
 .act-circle.keep {
   background: var(--rose);
   border-color: transparent;
   color: var(--on-rose);
+  font-weight: 700;
+}
+.act-circle.keep.on {
+  background: var(--surface-2);
+  color: var(--ink-3);
 }
 .act-deeper {
   flex: 1;
+  min-width: 0;
   height: 54px;
   border-radius: 999px;
   background: var(--surface);
