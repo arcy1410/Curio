@@ -18,6 +18,9 @@ export default function Profile({
   onSignOut,
   theme = 'light',
   onToggleTheme = () => {},
+  streak = 0,
+  longest = 0,
+  week = [],
 }) {
   const swipeCount = state.swipes.length
   const keepCount = state.kept.length
@@ -56,56 +59,63 @@ export default function Profile({
         </button>
       </div>
 
+      {/* Streak. Presented as a record of what you've done, never as
+          something at risk — no "don't lose it", no countdown (NG3). */}
+      <div className="streak-card">
+        <div className="streak-top">
+          <span className="streak-n">{streak}</span>
+          <div>
+            <div className="streak-label">day streak</div>
+            <div className="streak-sub">Longest: {longest} {longest === 1 ? 'day' : 'days'}</div>
+          </div>
+        </div>
+        <div className="week-row">
+          {week.map((d, i) => (
+            <div key={d.key} className="week-day">
+              <span
+                className={`sq ${d.complete ? 'done' : ''} ${d.isToday ? 'today' : ''}`}
+                title={`${d.done} card${d.done === 1 ? '' : 's'}`}
+              />
+              <span className="mono">{d.initial}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Stats */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          gap: 10,
-          margin: '18px 0 8px',
-        }}
-      >
+      <div className="stat-grid">
         {[
-          { n: swipeCount, l: 'Swiped' },
-          { n: keepCount, l: 'Kept' },
-          { n: state.interests.length, l: 'Interests' },
+          { n: swipeCount, l: 'cards swiped' },
+          { n: keepCount, l: 'cards kept' },
+          { n: state.interests.length, l: 'interests' },
         ].map((s) => (
           <div key={s.l} className="stat-tile">
             <div className="n">{s.n}</div>
-            <div className="l">{s.l}</div>
+            <div className="mono l">{s.l}</div>
           </div>
         ))}
       </div>
 
-      {/* Top interests */}
-      <div style={{ margin: '16px 0 6px', fontSize: 13, fontWeight: 600, color: 'var(--ink-soft)' }}>
-        You lean toward
-      </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+      {/* Mastery — the same additive scores the feed uses, shown honestly as
+          "where your attention is going" rather than as a skill claim we
+          cannot evidence. */}
+      <div className="section-head mono">What you&apos;re building</div>
+      <div className="mastery">
         {top3.map((t) => (
-          <span
-            key={t.id}
-            className="chip"
-            style={{
-              fontSize: 13,
-              padding: '6px 12px',
-              background: `color-mix(in srgb, ${t.color} 16%, transparent)`,
-              borderColor: `color-mix(in srgb, ${t.color} 35%, transparent)`,
-              color: t.color,
-              fontWeight: 700,
-            }}
-          >
-            {t.emoji} {t.name} · {Math.round((dist[t.id] ?? 0) * 100)}%
-          </span>
+          <div key={t.id} className="mastery-row">
+            <div className="mastery-top">
+              <span>{t.name}</span>
+              <span className="mono">{Math.round((dist[t.id] ?? 0) * 100)}%</span>
+            </div>
+            <div className="bar">
+              <span style={{ width: `${Math.round((dist[t.id] ?? 0) * 100)}%` }} />
+            </div>
+          </div>
         ))}
       </div>
 
-      <button
-        className="btn-ghost"
-        style={{ width: '100%', marginTop: 14 }}
-        onClick={onEditInterests}
-      >
-        ✎ Edit interests
+      <button className="btn-ghost wide" onClick={onEditInterests}>
+        Edit interests
       </button>
 
       {/* Locked Curio+ element example */}

@@ -575,6 +575,9 @@ export default function App() {
             state={state}
             authUser={authUser}
             signedIn={signedIn}
+            streak={streak}
+            longest={longestStreak(state.progress, state.dailyGoal)}
+            week={lastSevenDays(state.progress, state.dailyGoal)}
             theme={theme}
             onToggleTheme={() => {
               const next = theme === 'dark' ? 'light' : 'dark'
