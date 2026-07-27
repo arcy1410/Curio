@@ -1,5 +1,10 @@
 // Fixed topic list for onboarding. Each top-level topic has sub-topics.
 // For the prototype, personalization scores are tracked at the top-level `id`.
+//
+// Colours are drawn from the four-colour lily-pond palette and DELIBERATELY
+// shared — the handoff does the same ("#105666 marine biology, language ·
+// #0A3323 neuroscience, earth science …"). Inventing two more hues to give
+// six topics six colours would break a palette whose restraint is the point.
 
 export const TOPICS = [
   {
@@ -30,6 +35,15 @@ export const TOPICS = [
     subtopics: ['Classics', 'Awards', 'Behind the Scenes'],
   },
   {
+    id: 'hollywood',
+    name: 'Hollywood',
+    emoji: '🍿',
+    color: '#0A3323', // dark green (shared with History)
+    onColor: '#F7F4D5',
+    blurb: 'The other film industry, and how it works.',
+    subtopics: ['Blockbusters', 'Oscars', 'Craft'],
+  },
+  {
     id: 'history',
     name: 'History',
     emoji: '🏛️',
@@ -37,6 +51,15 @@ export const TOPICS = [
     onColor: '#F7F4D5',
     blurb: 'Where the subcontinent came from.',
     subtopics: ['Ancient India', 'Medieval India', 'Science & Math'],
+  },
+  {
+    id: 'technology',
+    name: 'Technology',
+    emoji: '⚡',
+    color: '#105666', // midnight green (shared with Cricket)
+    onColor: '#F7F4D5',
+    blurb: 'What just changed, and why it matters.',
+    subtopics: ['AI', 'Startups', 'Space'],
   },
 ]
 
