@@ -43,6 +43,7 @@ export default function Feed({
   const [burst, setBurst] = useState(null) // { key, parts } emoji burst on save
   const childRefs = useRef({})
   const swiped = useRef(new Set()) // guard against double-recording
+  const advanced = useRef(new Set()) // guard against double-advancing the deck
   const methodRef = useRef('gesture') // how the current swipe was initiated
   const viewedRef = useRef(new Set()) // fire card_viewed once per card
 
@@ -78,6 +79,8 @@ export default function Feed({
   // so this can never hang the feed.
   useEffect(() => {
     if (!cardsReady) return
+    swiped.current = new Set()
+    advanced.current = new Set()
     const initial = []
     for (let i = 0; i < DECK_SIZE; i++) {
       const c = drawNext(initial.map((x) => x.id))
@@ -99,9 +102,29 @@ export default function Feed({
     else haptic.pass()
     onSwipe(card, action, methodRef.current)
     methodRef.current = 'gesture' // reset; buttons set it explicitly
+
+    // Advance IMMEDIATELY — not on onCardLeftScreen, and not on a timer.
+    //
+    // The deck used to move only when react-tinder-card reported the card had
+    // left the screen. That callback is unreliable on touch, so the swipe was
+    // recorded while the card sprang back with its stamp still showing, and
+    // the user had to swipe twice.
+    //
+    // A 240ms timer fixed that but introduced its own failure: browsers
+    // throttle timers in a backgrounded tab, so the deck could stall entirely.
+    // Nothing about correctness should wait on either a timer or an animation
+    // — one swipe, the card goes.
+    advance(card)
   }
 
-  function handleLeftScreen(card) {
+  /**
+   * Drop a card from the deck and draw its replacement. Idempotent — both the
+   * timer above and onCardLeftScreen call it, and whichever arrives first
+   * wins. Without the guard the second call would append an extra card.
+   */
+  function advance(card) {
+    if (advanced.current.has(card.id)) return
+    advanced.current.add(card.id)
     setDeck((prev) => {
       const remaining = prev.filter((c) => c.id !== card.id)
       const next = drawNext(remaining.map((c) => c.id))
@@ -110,23 +133,27 @@ export default function Feed({
     delete childRefs.current[card.id]
   }
 
-  // Buttons trigger a programmatic swipe on the top card.
-  async function trigger(action) {
+  function handleLeftScreen(card) {
+    advance(card)
+  }
+
+  // Buttons act on the card directly; the fling is cosmetic.
+  //
+  // This used to `await ref.current.swipe(dir)` and rely on react-tinder-card
+  // to report back. It didn't, reliably — the first tap worked and later ones
+  // recorded a swipe while leaving the card sitting there, so the user had to
+  // tap twice. Correctness no longer depends on an animation completing:
+  // handleSwipe records and schedules the advance, and the fling is fired
+  // alongside purely for looks.
+  function trigger(action) {
     const top = deck[0]
     if (!top) return
     if (gated) return onGateHit() // R9: block the action, keep the card
     methodRef.current = 'button'
-    const ref = childRefs.current[top.id]
     const dir = action === 'pass' ? 'left' : 'right'
-    if (ref?.current) {
-      try {
-        await ref.current.swipe(dir)
-      } catch {
-        // if the animation ref isn't ready, fall back to direct handling
-        handleSwipe(top, dir)
-        handleLeftScreen(top)
-      }
-    }
+
+    handleSwipe(top, dir)
+    childRefs.current[top.id]?.current?.swipe(dir)?.catch?.(() => {})
   }
 
   // Explicit save of the current top card. Spec R4: a feed save auto-swipes
@@ -143,16 +170,11 @@ export default function Feed({
       fireBurst()
       swiped.current.add(top.id) // already recorded by App — don't record again
       setDragDir(null)
-      const ref = childRefs.current[top.id]
-      if (ref?.current) {
-        try {
-          await ref.current.swipe('right')
-        } catch {
-          handleLeftScreen(top)
-        }
-      } else {
-        handleLeftScreen(top)
-      }
+      // Same rule as trigger(): App already recorded the save, so mark it
+      // swiped, advance, and fling purely for looks.
+      swiped.current.add(top.id)
+      advance(top)
+      childRefs.current[top.id]?.current?.swipe('right')?.catch?.(() => {})
     } else if (result === 'blocked') {
       haptic.error() // cap hit — card stays put, nudge toast is showing
     } else {
