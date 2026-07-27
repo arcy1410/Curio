@@ -68,13 +68,18 @@ export default function Onboarding({
 
   return (
     <div className="onboard">
-      {!isEdit && (
-        <div className="steps" aria-hidden="true">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className={`step-dot ${i === step ? 'on' : ''}`} />
-          ))}
+      <div className="onboard-head">
+        <div className="wordmark">
+          Curio<span className="dot">.</span>
         </div>
-      )}
+        {!isEdit && (
+          <div className="steps" aria-hidden="true">
+            {[0, 1, 2].map((i) => (
+              <span key={i} className={`step-dot ${i === step ? 'on' : ''}`} />
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="onboard-body">
         {step === 0 && (
@@ -112,15 +117,21 @@ export default function Onboarding({
                 : 'Pick two or more. You can change these later.'}
             </p>
 
-            <div className="chip-grid">
+            {/* Colour tiles rather than outline chips — same shape as
+                Wander's browse grid, so choosing a topic here and browsing one
+                there read as the same object. */}
+            <div className="tile-grid">
               {TOPICS.map((t) => (
                 <button
                   key={t.id}
-                  className={`pick-chip ${picked.has(t.id) ? 'on' : ''}`}
+                  className={`topic-tile ${picked.has(t.id) ? 'on' : ''}`}
+                  style={{ '--tile': t.color }}
                   onClick={() => toggle(t.id)}
                   aria-pressed={picked.has(t.id)}
                 >
-                  {t.name}
+                  <span className="tname">{t.name}</span>
+                  <span className="mono tsub">{t.blurb}</span>
+                  {picked.has(t.id) && <span className="tick" aria-hidden="true">✓</span>}
                 </button>
               ))}
             </div>
