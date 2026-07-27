@@ -35,13 +35,23 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
 
   const topicLabel = `${topicName(card.topic)}${card.subtopic ? ` · ${card.subtopic}` : ''}`
 
+  function reveal() {
+    if (revealed) return
+    haptic.tap()
+    setRevealed(true)
+    track(EV.QUIZ_REVEALED, { card_id: card.id, topic: card.topic })
+  }
+
   const footer = (
     <div className="card-foot">
+      {/* Every control inside the card takes pointerdown — react-tinder-card
+          swallows taps on touch devices before a click is synthesised. */}
       <a
         className="source"
         href={card.source_url}
         target="_blank"
         rel="noreferrer"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation()
           // Engagement with the source = engagement with the trust mechanism.
@@ -60,10 +70,12 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
           someone reading closely already is. */}
       <button
         className="why-true"
-        onClick={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation()
+          e.preventDefault()
           onGoDeeper?.()
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {commentCount > 0 ? `${commentCount} · Why it's true →` : "Why it's true →"}
       </button>
@@ -114,13 +126,25 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
             ) : (
               <div className="answer-locked">
                 <span className="mono">Commit to a guess first</span>
+                {/* onPointerDown, not onClick.
+                    react-tinder-card owns the card's pointer/touch handlers to
+                    drive the drag, and on a TOUCH device it swallows the tap
+                    before a click event is ever synthesised — so this button
+                    worked with a mouse and did nothing on a phone, which is
+                    the only device that matters here. Acting on pointerdown
+                    and stopping propagation gets in before the drag logic. */}
                 <button
                   className="reveal-btn"
-                  onClick={(e) => {
+                  onPointerDown={(e) => {
                     e.stopPropagation()
-                    haptic.tap()
-                    setRevealed(true)
-                    track(EV.QUIZ_REVEALED, { card_id: card.id, topic: card.topic })
+                    e.preventDefault()
+                    reveal()
+                  }}
+                  onClick={(e) => {
+                    // Keyboard/assistive activation still routes through click;
+                    // reveal() is idempotent so a double-fire is harmless.
+                    e.stopPropagation()
+                    reveal()
                   }}
                 >
                   Reveal the answer
