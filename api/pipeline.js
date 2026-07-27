@@ -235,6 +235,12 @@ export default async function handler(req, res) {
           generator_model: result.generatorModel,
           verifier_model: result.verifierModel,
           cost_usd: result.cost,
+          // Redesign quiz layer. Null when the quiz step failed its own
+          // verification — the card still ships, it just renders as editorial.
+          quiz_question: result.quiz?.quizQuestion ?? null,
+          quiz_answer: result.quiz?.quizAnswer ?? null,
+          stat: result.quiz?.stat ?? null,
+          stat_label: result.quiz?.statLabel ?? null,
         })
 
         if (insertError) {

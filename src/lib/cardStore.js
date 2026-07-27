@@ -29,6 +29,12 @@ function toCard(row) {
     body: row.body,
     source_url: row.source_url,
     verified: row.verified,
+    // Redesign quiz layer; null on cards that predate it (they render as
+    // the editorial treatment instead).
+    quiz_question: row.quiz_question ?? null,
+    quiz_answer: row.quiz_answer ?? null,
+    stat: row.stat ?? null,
+    stat_label: row.stat_label ?? null,
   }
 }
 
@@ -44,7 +50,8 @@ export async function loadCards({ timeoutMs = 8000 } = {}) {
 
   try {
     const params = new URLSearchParams({
-      select: 'id,topic_id,title,body,source_url,verified,subtopic:subtopic_id(name)',
+      select:
+        'id,topic_id,title,body,source_url,verified,quiz_question,quiz_answer,stat,stat_label,subtopic:subtopic_id(name)',
       verified: 'is.true', // redundant with RLS, kept as an explicit intent
       order: 'created_at.desc',
     })
