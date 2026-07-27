@@ -176,6 +176,70 @@ Write one Curio card grounded strictly in the source text above.`,
   return { title: r.parsed.title, body: r.parsed.body, model: r.model, usage: r.usage, cost: r.cost }
 }
 
+const QUIZ_SCHEMA = {
+  type: 'object',
+  properties: {
+    quiz_question: { type: 'string' },
+    quiz_answer: { type: 'string' },
+    stat: { type: 'string' },
+    stat_label: { type: 'string' },
+  },
+  required: ['quiz_question', 'quiz_answer', 'stat', 'stat_label'],
+  additionalProperties: false,
+}
+
+const QUIZ_SYSTEM = `You turn a factual card into a "guess first" quiz for Curio.
+
+Produce four things:
+1. quiz_question — ONE question, under 90 characters, whose answer is the single most surprising fact in the card. It must be answerable from the card, and interesting to guess at: prefer "how many", "where", "how long" over yes/no. Never ask something the question itself gives away.
+2. quiz_answer — the answer in 1-2 plain sentences, under 220 characters. Every fact must appear in the source text.
+3. stat — the single most striking figure, as a SHORT display string: "350M", "1721", "20 years", "43%". Under 10 characters. If the source has no figure, use a short defining phrase instead (e.g. "Ivory marble").
+4. stat_label — 2-5 words in plain language saying what the stat counts, e.g. "neurons, mostly in the limbs".
+
+Rules:
+- Every fact you write MUST appear in the source text provided. Invent nothing.
+- Do not editorialise, and do not use judgement adjectives.
+- The question must not repeat the card's title verbatim.`
+
+/**
+ * Derive the quiz layer for a card.
+ *
+ * Grounded on the SOURCE, not on the card body. That distinction is what makes
+ * this native-quality rather than a summary-of-a-summary: the quiz sees the
+ * same evidence the card was written from, so its answer can carry a detail
+ * the card compressed away — and the verifier can check it against the source
+ * like any other claim.
+ */
+export async function openaiGenerateQuiz({ source, card }) {
+  const r = await callOpenAI({
+    model: OPENAI_GENERATOR,
+    schemaName: 'quiz',
+    schema: QUIZ_SCHEMA,
+    system: QUIZ_SYSTEM,
+    user: `<source_text>
+${source.text.slice(0, 12000)}
+</source_text>
+
+<card>
+Title: ${card.title}
+
+${card.body}
+</card>
+
+Write the guess-first quiz layer for this card.`,
+    maxTokens: 800,
+  })
+  return {
+    quizQuestion: r.parsed.quiz_question,
+    quizAnswer: r.parsed.quiz_answer,
+    stat: r.parsed.stat,
+    statLabel: r.parsed.stat_label,
+    model: r.model,
+    usage: r.usage,
+    cost: r.cost,
+  }
+}
+
 export async function openaiVerifyCard({ source, card }) {
   const r = await callOpenAI({
     model: OPENAI_VERIFIER,

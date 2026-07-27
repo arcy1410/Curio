@@ -18,18 +18,31 @@ import {
   mergeState,
 } from './lib/userData.js'
 import AuthWall from './components/AuthWall.jsx'
+import CardDetail from './components/CardDetail.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
+import { storedTheme, setTheme } from './lib/theme.js'
+import { markReviewed } from './lib/review.js'
+import {
+  GOALS,
+  currentStreak,
+  longestStreak,
+  lastSevenDays,
+  recordCardDone,
+  todayState,
+} from './lib/streak.js'
 import { track, setPersonProps, resetAnalytics, identifyUser, EV } from './lib/analytics.js'
 
 export default function App() {
   const [state, setState] = useState(loadState)
   const [tab, setTab] = useState('feed') // feed | discover | kept | profile
   const [commentsCard, setCommentsCard] = useState(null)
+  const [detailCard, setDetailCard] = useState(null)
   const [toast, setToast] = useState(null)
   const [editingInterests, setEditingInterests] = useState(false)
+  const [theme, setThemeState] = useState(storedTheme)
 
   // Card library. Starts as the bundled seed set so the first paint is
   // instant and the feed is never empty, then swaps to the Supabase store
@@ -44,7 +57,17 @@ export default function App() {
   const [cardsReady, setCardsReady] = useState(false)
 
   // ── R9: identity + the swipe gate ───────────────────────────
-  const FREE_SWIPE_ACTIONS = 7
+  //
+  // Three, not the spec's original seven. The redesign introduced a daily set
+  // (default 5 cards), and a gate at 7 could never fire on day one — a user
+  // finishes their set and never meets it, so the account they need to keep
+  // their history is never offered. The gate has to sit INSIDE the first set
+  // or it does not exist.
+  //
+  // Three is also where the pitch is honest: by the third card the feed has
+  // visibly started tuning, so "keep what you've built" refers to something
+  // the user can actually see.
+  const FREE_SWIPE_ACTIONS = 3
   const [authUser, setAuthUser] = useState(null)
   const [wallOpen, setWallOpen] = useState(false)
   const signedIn = isPermanent(authUser)
@@ -180,7 +203,7 @@ export default function App() {
   }
 
   // ── Onboarding (first run) ──────────────────────────────────
-  function finishOnboarding(interests) {
+  function finishOnboarding(interests, dailyGoal = 1) {
     const scores = initialScores(interests)
     scoresRef.current = scores
     seenRef.current = new Set()
@@ -189,12 +212,17 @@ export default function App() {
       onboarded: true,
       stateVersion: STATE_VERSION, // fresh users start on current semantics — no migration notice
       interests,
+      dailyGoal,
       topicScores: scores,
       seen: [],
       kept: [],
       swipes: [],
     }))
-    track(EV.ONBOARDING_COMPLETED, { interests, interest_count: interests.length })
+    track(EV.ONBOARDING_COMPLETED, {
+      interests,
+      interest_count: interests.length,
+      goal_cards: GOALS[dailyGoal]?.cards,
+    })
     setPersonProps({ interests, interest_count: interests.length })
     syncInterests(interests)
     syncScores(scores)
@@ -276,7 +304,33 @@ export default function App() {
     // the network, and by here the card has already left the screen.
     syncSwipe({ cardId: card.id, action, surface: 'feed' })
     syncScores(nextScores)
+    countTowardToday()
   }, [])
+
+  // ── Daily set + streak ──────────────────────────────────────
+  //
+  // Progress is a per-day count; the streak is DERIVED from it (see
+  // streak.js) rather than stored, so there is no counter to drift or inflate.
+  // Deliberately: finishing the set is where the set ends — nothing rewards
+  // exceeding it, and no prompt asks for one more.
+  const countTowardToday = useCallback(() => {
+    setState((s) => {
+      const progress = recordCardDone(s.progress)
+      const before = todayState(s.progress, s.dailyGoal)
+      const after = todayState(progress, s.dailyGoal)
+      if (!before.complete && after.complete) {
+        setToast(`Set complete — ${after.need} cards`)
+        track(EV.DAILY_SET_COMPLETED, {
+          goal_cards: after.need,
+          streak_days: currentStreak(progress, s.dailyGoal),
+        })
+      }
+      return { ...s, progress }
+    })
+  }, [])
+
+  const streak = currentStreak(state.progress, state.dailyGoal)
+  const today = todayState(state.progress, state.dailyGoal)
 
   // ── Locked Curio+ controls (R6 nested reply, R3 swipe undo) ──
   //
@@ -358,6 +412,9 @@ export default function App() {
         topicScores: nextScores,
         seen: [...s.seen, card.id],
         swipes: [...s.swipes, { cardId: card.id, action: 'interested', ts: Date.now() }],
+        // savedAt starts the decay clock (review.js) — without it every kept
+        // card looks equally fresh forever and "retained" is unmeasurable.
+        reviewMeta: { ...s.reviewMeta, [card.id]: { savedAt: Date.now(), reviewCount: 0 } },
       }))
       track(EV.CARD_SWIPED, {
         card_id: card.id,
@@ -372,6 +429,7 @@ export default function App() {
         ...s,
         kept: [card.id, ...s.kept],
         topicScores: nextScores,
+        reviewMeta: { ...s.reviewMeta, [card.id]: { savedAt: Date.now(), reviewCount: 0 } },
       }))
     }
 
@@ -386,6 +444,7 @@ export default function App() {
 
     syncSave({ cardId: card.id, saved: true })
     syncScores(nextScores)
+    if (source === 'feed') countTowardToday() // a feed save IS a swipe-action (R4)
     // A feed save auto-swipes right (R4), so it is a swipe row too — without
     // this the Kept pile and the swipe history would disagree about the card.
     if (source === 'feed') syncSwipe({ cardId: card.id, action: 'interested', surface: 'feed' })
@@ -498,10 +557,13 @@ export default function App() {
             scores={state.topicScores}
             swipeCount={state.swipes.length}
             onOpenComments={setCommentsCard}
+            onGoDeeper={setDetailCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
             cardsReady={cardsReady}
+            today={today}
+            streak={streak}
             gated={gated}
             onGateHit={hitGate}
             onLockedUndo={() => lockedFeature('swipe_undo', 'Undo is a Curio+ feature')}
@@ -521,6 +583,21 @@ export default function App() {
         {tab === 'kept' && (
           <KeptPile
             keptCards={keptCards}
+            reviewMeta={state.reviewMeta}
+            onReview={(cards) => {
+              // A review is a re-read, which is the retention signal itself.
+              haptic.tap()
+              const now = Date.now()
+              setState((s) => ({
+                ...s,
+                reviewMeta: cards.reduce(
+                  (acc, c) => ({ ...acc, [c.id]: markReviewed(s.reviewMeta[c.id] ?? {}, now) }),
+                  { ...s.reviewMeta }
+                ),
+              }))
+              track(EV.REVIEW_COMPLETED, { card_count: cards.length })
+              setToast(`${cards.length} card${cards.length === 1 ? '' : 's'} refreshed`)
+            }}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'kept')}
@@ -531,6 +608,15 @@ export default function App() {
             state={state}
             authUser={authUser}
             signedIn={signedIn}
+            streak={streak}
+            longest={longestStreak(state.progress, state.dailyGoal)}
+            week={lastSevenDays(state.progress, state.dailyGoal)}
+            theme={theme}
+            onToggleTheme={() => {
+              const next = theme === 'dark' ? 'light' : 'dark'
+              setTheme(next)
+              setThemeState(next)
+            }}
             onSignIn={() => setWallOpen(true)}
             onSignOut={async () => {
               await signOut()
@@ -557,13 +643,14 @@ export default function App() {
 
       <nav className="bottomnav">
         {[
-          { id: 'feed', ic: '🗂️', label: 'Feed' },
-          { id: 'discover', ic: '🔍', label: 'Discover' },
-          { id: 'kept', ic: '📌', label: 'Kept', badge: keptCards.length },
-          { id: 'profile', ic: '👤', label: 'You' },
+          { id: 'feed', label: 'Feed' },
+          { id: 'discover', label: 'Wander' },
+          { id: 'kept', label: 'Kept', badge: keptCards.length },
+          { id: 'profile', label: 'You' },
         ].map((item) => (
           <button
             key={item.id}
+            data-tab={item.id}
             className={`navitem ${tab === item.id ? 'on' : ''}`}
             onClick={() => {
               haptic.nav()
@@ -571,12 +658,23 @@ export default function App() {
               setTab(item.id)
             }}
           >
-            <span className="ic">{item.ic}</span>
+            <span className="ic" />
             {item.badge ? <span className="badge">{item.badge}</span> : null}
             {item.label}
           </button>
         ))}
       </nav>
+
+      {detailCard && (
+        <CardDetail
+          card={detailCard}
+          isSaved={isSaved(detailCard.id)}
+          commentCount={commentCountFor(detailCard.id)}
+          onOpenComments={() => setCommentsCard(detailCard)}
+          onKeep={() => toggleSave(detailCard, 'detail')}
+          onClose={() => setDetailCard(null)}
+        />
+      )}
 
       {wallOpen && (
         <AuthWall

@@ -28,10 +28,14 @@ export default function Feed({
   onToggleSave,
   isSaved,
   cardsReady = true,
+  today = { done: 0, need: 5, complete: false },
+  streak = 0,
   gated = false, // R9: swipe-actions blocked until they sign in
   onGateHit = () => {},
   onLockedUndo = () => {},
+  onGoDeeper,
 }) {
+  const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
@@ -180,7 +184,34 @@ export default function Feed({
   }, [ready, deck.length])
 
   return (
-    <div>
+    // feed-root, not a bare div: .screen is a flex column and this sits
+    // between it and .deck-wrap. Without joining the flex chain the deck never
+    // gets the leftover height, so the card clipped its own footer.
+    <div className="feed-root">
+      {/* Today's set. The counter and bar exist to make the set FINISHABLE —
+          a feed with no end is the doom-scroll shape this product is
+          deliberately not (NG3). */}
+      <div className="set-head">
+        <div>
+          <div className="mono">{weekdayLabel} · Today&apos;s set</div>
+          <div className="set-count">
+            {Math.min(today.done, today.need)} of {today.need}
+          </div>
+        </div>
+        {streak > 0 && (
+          <div className="streak-pill">
+            <span className="dot" />
+            {streak} {streak === 1 ? 'day' : 'days'}
+          </div>
+        )}
+      </div>
+      <div className="set-progress">
+        <div
+          className="fill"
+          style={{ width: `${Math.min(100, (today.done / today.need) * 100)}%` }}
+        />
+      </div>
+
       <TuningMeter scores={scores} swipeCount={swipeCount} />
 
       <div className="deck-wrap">
@@ -237,6 +268,7 @@ export default function Feed({
                     swipeDir={isTop ? dragDir : null}
                     commentCount={commentCountFor(card.id)}
                     onOpenComments={() => onOpenComments(card)}
+                    onGoDeeper={() => onGoDeeper?.(card)}
                   />
                 </div>
               </TinderCard>
@@ -256,44 +288,62 @@ export default function Feed({
 
         {deck.length > 0 && (
           <>
+            {/* FOUR controls, not the handoff's three.
+                The design brief says "Keep, don't like" and merges the two —
+                but Curio's spec separates them deliberately (R3/R4), and that
+                separation is the product: Like tunes the feed and costs
+                nothing, Keep commits a card to a pile capped at 20. Collapsing
+                them means every card you found interesting also spends a slot
+                you were saving for the ones worth re-reading. */}
             <div className="actions">
-              {/* Swipe undo is Curio+ (R3). Visible and tappable from the
-                  start, so the escape hatch is a known boundary rather than
-                  something discovered at the worst possible moment — right
-                  after a mis-swipe. It never undoes anything in this release. */}
               <button
-                className="round small locked"
-                onClick={onLockedUndo}
-                aria-label="Undo last swipe — Curio+"
-                disabled={swipeCount === 0}
+                className="act-circle"
+                onClick={() => trigger('pass')}
+                aria-label="Later — pass this card"
               >
-                🔒↩
+                Later
               </button>
-              <button className="round pass" onClick={() => trigger('pass')} aria-label="Pass">
-                ✕
-              </button>
+
               <button
-                className="round small"
+                className="act-deeper"
                 onClick={() => {
                   haptic.open()
-                  onOpenComments(deck[0])
+                  onGoDeeper?.(deck[0])
                 }}
-                aria-label="Comments"
               >
-                💬
+                Go deeper
               </button>
+
               <button
-                className={`round small save ${topSaved ? 'on' : ''}`}
-                onClick={saveTop}
-                aria-label={topSaved ? 'Saved' : 'Save'}
+                className="act-circle like"
+                onClick={() => trigger('interested')}
+                aria-label="Interested — more like this"
               >
-                🔖
+                Like
               </button>
-              <button className="round keep" onClick={() => trigger('interested')} aria-label="Interested">
-                👍
+
+              <button
+                className={`act-circle keep ${topSaved ? 'on' : ''}`}
+                onClick={saveTop}
+                aria-label={topSaved ? 'Saved to Kept' : 'Keep — save to your pile'}
+              >
+                {topSaved ? 'Kept' : 'Keep'}
               </button>
             </div>
-            <div className="action-hint">← Pass · Interested → &nbsp;·&nbsp; 🔖 Save to keep</div>
+
+            <div className="hint-row">
+              <span className="action-hint mono">← later · like → · keep saves it</span>
+              {/* R3: visible-but-locked, kept out of the primary row so it
+                  doesn't compete with the three actions that actually work. */}
+              <button
+                className="undo-locked mono"
+                onClick={onLockedUndo}
+                disabled={swipeCount === 0}
+                aria-label="Undo last swipe — Curio+"
+              >
+                🔒 undo
+              </button>
+            </div>
           </>
         )}
       </div>

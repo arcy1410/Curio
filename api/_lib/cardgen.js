@@ -10,7 +10,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { geminiGenerateCard, geminiVerifyCard } from './gemini.js'
-import { openaiGenerateCard, openaiVerifyCard } from './openai.js'
+import { openaiGenerateCard, openaiVerifyCard, openaiGenerateQuiz } from './openai.js'
 
 const GENERATOR = 'claude-sonnet-5'
 const VERIFIER = 'claude-haiku-4-5'
@@ -283,8 +283,31 @@ export async function generateVerifiedCard({ source, topicName, subtopicName, ma
     cost += check.cost
 
     if (check.verified) {
+      // Quiz layer (redesign). Only ever added to a card that already passed
+      // verification, and the quiz's own answer is checked against the source
+      // too — a "guess first" answer is a claim shown to the reader as fact,
+      // so it gets the same gate as the card body. A failed or unverifiable
+      // quiz degrades the card to the editorial treatment; it never blocks a
+      // verified card from publishing.
+      let quiz = null
+      if (genProvider === 'openai') {
+        try {
+          const q = await openaiGenerateQuiz({ source, card })
+          cost += q.cost
+          const qCheck = await check_({
+            source,
+            card: { title: q.quizQuestion, body: q.quizAnswer },
+          })
+          cost += qCheck.cost
+          if (qCheck.verified) quiz = q
+        } catch {
+          // leave quiz null — the card still ships
+        }
+      }
+
       return {
         card,
+        quiz,
         verified: true,
         attempts,
         cost,

@@ -16,14 +16,26 @@ export default function TuningMeter({ scores, swipeCount }) {
 
   return (
     <div className="tuning">
-      <div className="row">
-        <span className="label">
-          {swipeCount < 3 ? 'Your feed is learning…' : 'Your feed right now'}
+      {/* One line, and the line IS the toggle. "Your feed is learning…" beside
+          "Leaning X" read as a typo — two near-identical words a few pixels
+          apart — so the label now names the mechanism and the value names the
+          topic, with no echo. Collapsed to a single row because the handoff
+          has no panel here and the boxed version was stealing card height. */}
+      <button
+        className="tuning-line"
+        onClick={() => {
+          track(EV.TUNING_METER_TOGGLED, { opening: !open, swipe_count: swipeCount, lead_topic: lead })
+          setOpen((o) => !o)
+        }}
+      >
+        <span className="mono">
+          {swipeCount < 3 ? 'Tuning to your swipes' : 'Your feed right now'}
         </span>
         <span className="lead" style={{ color: leadColor }}>
-          {leadTopic ? `${leadTopic.emoji} Leaning ${leadTopic.name}` : ''}
+          {leadTopic ? `Mostly ${leadTopic.name}` : ''}
+          <span className="caret">{open ? '▲' : '▼'}</span>
         </span>
-      </div>
+      </button>
 
       {open && (
         <div className="bars">
@@ -44,15 +56,7 @@ export default function TuningMeter({ scores, swipeCount }) {
         </div>
       )}
 
-      <button
-        className="expand"
-        onClick={() => {
-          track(EV.TUNING_METER_TOGGLED, { opening: !open, swipe_count: swipeCount, lead_topic: lead })
-          setOpen((o) => !o)
-        }}
-      >
-        {open ? 'Hide the mix' : 'See how your feed is weighted'}
-      </button>
+
     </div>
   )
 }

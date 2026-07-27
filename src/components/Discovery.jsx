@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { TOPICS, topicColor, topicEmoji, topicName } from '../data/topics.js'
+import { TOPICS, topicColor, topicName } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
 import { createDwellTracker } from '../lib/dwell.js'
@@ -22,6 +22,7 @@ export default function Discovery({
   isSaved,
   onCardRead = () => {},
   alreadySeen = [],
+  onSearchTap,
 }) {
   const CARDS = cards // library comes from App (Supabase-backed, seed fallback)
   const [topicId, setTopicId] = useState(null)
@@ -66,22 +67,38 @@ export default function Discovery({
     trackerRef.current?.observe(el, cardId)
   }
 
-  // ── Topic chooser ──
+  // ── Wander: browse any topic ──
   if (!topicId) {
     return (
       <div>
         <div className="kept-head">
-          <h1>Discover</h1>
-          <p>Pick any topic and dive into every card in it.</p>
+          <h1>Wander</h1>
+          <span className="mono">{CARDS.length} cards</span>
         </div>
-        <div className="topic-grid" style={{ marginTop: 16 }}>
+
+        {/* A visual mock in the handoff, and honest about it here: tapping it
+            says so rather than opening a dead field. Building fake search that
+            silently does nothing is worse than admitting it isn't built. */}
+        <button
+          className="wander-search"
+          onClick={() => {
+            haptic.tap()
+            onSearchTap?.()
+          }}
+        >
+          <span className="glyph" />
+          Ask anything — &ldquo;why is the sky blue&rdquo;
+        </button>
+
+        <div className="section-head mono">Browse</div>
+        <div className="tile-grid">
           {TOPICS.map((t) => {
             const count = CARDS.filter((c) => c.topic === t.id).length
             return (
               <button
                 key={t.id}
-                className="topic-card"
-                style={{ '--topic-c': t.color }}
+                className="topic-tile on"
+                style={{ '--tile': t.color, '--on-tile': t.onColor }}
                 onClick={() => {
                   haptic.tap()
                   track(EV.DISCOVERY_TOPIC_SELECTED, { topic: t.id, card_count: count })
@@ -89,14 +106,10 @@ export default function Discovery({
                   setSub(null)
                 }}
               >
-                <div className="emoji">{t.emoji}</div>
-                <div className="tname">{t.name}</div>
-                <div className="tblurb">{t.blurb}</div>
-                <div className="subs">
-                  <span className="chip">
-                    {count} card{count === 1 ? '' : 's'}
-                  </span>
-                </div>
+                <span className="tname">{t.name}</span>
+                <span className="mono tsub">
+                  {count} card{count === 1 ? '' : 's'}
+                </span>
               </button>
             )
           })}
@@ -123,17 +136,15 @@ export default function Discovery({
       </button>
 
       <div className="kept-head" style={{ marginTop: 6 }}>
-        <h1 style={{ color: topic.color }}>
-          {topic.emoji} {topic.name}
-        </h1>
-        <p>
+        <h1>{topic.name}</h1>
+        <span className="mono">
           {shown.length} card{shown.length === 1 ? '' : 's'}
-        </p>
+        </span>
       </div>
 
       <div className="sub-filter">
         <button
-          className={`chip ${!sub ? 'on' : ''}`}
+          className={`filter-chip ${!sub ? 'on' : ''}`}
           onClick={() => {
             haptic.tap()
             setSub(null)
@@ -144,7 +155,7 @@ export default function Discovery({
         {topic.subtopics.map((s) => (
           <button
             key={s}
-            className={`chip ${sub === s ? 'on' : ''}`}
+            className={`filter-chip ${sub === s ? 'on' : ''}`}
             onClick={() => {
               haptic.tap()
               track(EV.DISCOVERY_SUBTOPIC_FILTERED, { topic: topicId, subtopic: s })
@@ -166,9 +177,11 @@ export default function Discovery({
               ref={(el) => observeRow(el, card.id)}
               style={{ '--topic': topicColor(card.topic) }}
             >
-              <div className="tag">
-                {topicEmoji(card.topic)} {topicName(card.topic)}
-                {card.subtopic ? ` · ${card.subtopic}` : ''}
+              <div className="kept-meta-row">
+                <span className="mono">
+                  {topicName(card.topic)}
+                  {card.subtopic ? ` · ${card.subtopic}` : ''}
+                </span>
               </div>
               <h3>{card.title}</h3>
               <p>{card.body}</p>

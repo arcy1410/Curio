@@ -19,6 +19,10 @@ const DEFAULT_STATE = {
   kept: [], // cardIds swiped right, most-recent first
   seen: [], // cardIds already shown (keep or pass)
   comments: {}, // { cardId: [{ id, text, ts, parentId }] }
+  // Redesign: daily set + streak.
+  dailyGoal: 1, // index into GOALS — 0:3 cards, 1:5 (default), 2:10
+  progress: {}, // { 'YYYY-MM-DD': cardsFinished } — the streak is derived, never stored
+  reviewMeta: {}, // { cardId: { savedAt, reviewCount, lastReviewedAt } } — decay state
 }
 
 export function loadState() {

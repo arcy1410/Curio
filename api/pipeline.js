@@ -68,6 +68,45 @@ const TOPIC_SOURCES = {
     topicMustMatch: /\b(film\w*|cinema|movie\w*|bollywood|actor|actress|director|screenplay|filmfare|soundtrack)\b/i,
     seeds: ['Bollywood', 'Cinema of India', 'Filmfare Awards'],
   },
+  hollywood: {
+    // The counterpart to `bollywood`, not a replacement for it: bollywood
+    // keeps its India-first headline filter, hollywood deliberately has none,
+    // because requiring "India" in a Hollywood headline would return almost
+    // nothing. Topic-relevance is still enforced — that guardrail never
+    // depended on geography (see the India-first note in CLAUDE.md).
+    guardianSection: 'film',
+    guardianQuery: 'Hollywood OR "box office" OR Oscars OR "film review"',
+    titleMustMatch: null,
+    topicMustMatch:
+      /\b(film\w*|cinema|movie\w*|hollywood|actor|actress|director|screenplay|oscar\w*|academy award\w*|box office|studio|sequel|franchise)\b/i,
+    seeds: [
+      'Academy Awards',
+      'Cinema of the United States',
+      'Blockbuster (entertainment)',
+      'Star Wars',
+      'Steven Spielberg',
+      'Marvel Cinematic Universe',
+      'Film score',
+      'Practical effects',
+    ],
+  },
+  technology: {
+    guardianSection: 'technology',
+    guardianQuery: '"artificial intelligence" OR startup OR semiconductor OR software OR "space launch"',
+    titleMustMatch: null,
+    topicMustMatch:
+      /\b(tech\w*|software|hardware|comput\w*|artificial intelligence|\bai\b|machine learning|algorithm\w*|startup\w*|semiconductor|chip\w*|robot\w*|internet|app\w*|data|space|satellite|rocket|launch)\b/i,
+    seeds: [
+      'Artificial intelligence',
+      'Semiconductor industry',
+      'Indian Space Research Organisation',
+      'Unified Payments Interface',
+      'Large language model',
+      'Aadhaar',
+      'Chandrayaan-3',
+      'Open-source software',
+    ],
+  },
   history: {
     // No section: Guardian files Indian history across culture, world and
     // books. The query and headline filter do the work here.
@@ -102,6 +141,7 @@ function supabase() {
 async function findSources(topic, limit) {
   const config = TOPIC_SOURCES[topic]
   const sources = []
+  const seedErrors = []
   let guardianError = null
 
   if (config.guardianQuery) {
@@ -143,13 +183,23 @@ async function findSources(topic, limit) {
   }
 
   // Top up from the topic's Wikipedia seeds.
+  //
+  // Each seed is individually guarded. A single transient Wikipedia failure
+  // used to throw out of here and abort the WHOLE run — including topics that
+  // had already produced verified cards. R10 is explicit that a source outage
+  // degrades freshness, never availability, and that has to hold for the
+  // backbone source too, not just for Guardian.
   for (const seed of config.seeds) {
     if (sources.length >= limit) break
-    const wiki = await fetchWikipedia(seed)
-    if (wiki) sources.push(wiki)
+    try {
+      const wiki = await fetchWikipedia(seed)
+      if (wiki) sources.push(wiki)
+    } catch (e) {
+      seedErrors.push(`${seed}: ${e.message}`)
+    }
   }
 
-  return { sources: sources.slice(0, limit), guardianError }
+  return { sources: sources.slice(0, limit), guardianError, seedErrors }
 }
 
 export default async function handler(req, res) {
@@ -189,8 +239,10 @@ export default async function handler(req, res) {
     for (const topic of topics) {
       if (!TOPIC_SOURCES[topic]) continue
 
-      const { sources, guardianError } = await findSources(topic, perTopic)
+      const { sources, guardianError, seedErrors } = await findSources(topic, perTopic)
       if (guardianError) details.push({ topic, note: `guardian unavailable: ${guardianError}` })
+      // Reported, not swallowed: a seed that keeps failing is a content gap.
+      if (seedErrors?.length) details.push({ topic, note: `seeds skipped: ${seedErrors.join(' | ')}` })
 
       for (const source of sources) {
         // Skip anything already in the store — source_url is unique.
@@ -235,6 +287,12 @@ export default async function handler(req, res) {
           generator_model: result.generatorModel,
           verifier_model: result.verifierModel,
           cost_usd: result.cost,
+          // Redesign quiz layer. Null when the quiz step failed its own
+          // verification — the card still ships, it just renders as editorial.
+          quiz_question: result.quiz?.quizQuestion ?? null,
+          quiz_answer: result.quiz?.quizAnswer ?? null,
+          stat: result.quiz?.stat ?? null,
+          stat_label: result.quiz?.statLabel ?? null,
         })
 
         if (insertError) {

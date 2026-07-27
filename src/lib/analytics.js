@@ -118,9 +118,16 @@ export const EV = {
   // core loop
   CARD_VIEWED: 'card_viewed',
   CARD_SWIPED: 'card_swiped', // { action: 'interested' | 'pass' }
+  CARD_DETAIL_OPENED: 'card_detail_opened', // "go deeper" — trust-mechanism engagement
+  QUIZ_REVEALED: 'quiz_revealed', // guess-first answer opened — the retention mechanic
   CARD_SAVED: 'card_saved',
   CARD_UNSAVED: 'card_unsaved',
   SAVE_LIMIT_REACHED: 'save_limit_reached', // {kept_count: 20} — highest-intent paywall moment
+
+  // daily set + streak (redesign)
+  DAILY_SET_COMPLETED: 'daily_set_completed', // {goal_cards, streak_days}
+  REVIEW_COMPLETED: 'review_completed', // {card_count} — the retention signal
+  DAILY_GOAL_CHANGED: 'daily_goal_changed', // {from_cards, to_cards}
 
   // pile
   KEPT_CARD_OPENED: 'kept_card_opened', // full-card reopen from Kept — the "retained" signal (G4)
