@@ -28,10 +28,13 @@ export default function Feed({
   onToggleSave,
   isSaved,
   cardsReady = true,
+  today = { done: 0, need: 5, complete: false },
+  streak = 0,
   gated = false, // R9: swipe-actions blocked until they sign in
   onGateHit = () => {},
   onLockedUndo = () => {},
 }) {
+  const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
   const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
@@ -181,6 +184,30 @@ export default function Feed({
 
   return (
     <div>
+      {/* Today's set. The counter and bar exist to make the set FINISHABLE —
+          a feed with no end is the doom-scroll shape this product is
+          deliberately not (NG3). */}
+      <div className="set-head">
+        <div>
+          <div className="mono">{weekdayLabel} · Today&apos;s set</div>
+          <div className="set-count">
+            {Math.min(today.done, today.need)} of {today.need}
+          </div>
+        </div>
+        {streak > 0 && (
+          <div className="streak-pill">
+            <span className="dot" />
+            {streak} {streak === 1 ? 'day' : 'days'}
+          </div>
+        )}
+      </div>
+      <div className="set-progress">
+        <div
+          className="fill"
+          style={{ width: `${Math.min(100, (today.done / today.need) * 100)}%` }}
+        />
+      </div>
+
       <TuningMeter scores={scores} swipeCount={swipeCount} />
 
       <div className="deck-wrap">

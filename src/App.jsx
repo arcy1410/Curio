@@ -22,6 +22,13 @@ import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
+import {
+  currentStreak,
+  longestStreak,
+  lastSevenDays,
+  recordCardDone,
+  todayState,
+} from './lib/streak.js'
 import { track, setPersonProps, resetAnalytics, identifyUser, EV } from './lib/analytics.js'
 
 export default function App() {
@@ -276,7 +283,33 @@ export default function App() {
     // the network, and by here the card has already left the screen.
     syncSwipe({ cardId: card.id, action, surface: 'feed' })
     syncScores(nextScores)
+    countTowardToday()
   }, [])
+
+  // ── Daily set + streak ──────────────────────────────────────
+  //
+  // Progress is a per-day count; the streak is DERIVED from it (see
+  // streak.js) rather than stored, so there is no counter to drift or inflate.
+  // Deliberately: finishing the set is where the set ends — nothing rewards
+  // exceeding it, and no prompt asks for one more.
+  const countTowardToday = useCallback(() => {
+    setState((s) => {
+      const progress = recordCardDone(s.progress)
+      const before = todayState(s.progress, s.dailyGoal)
+      const after = todayState(progress, s.dailyGoal)
+      if (!before.complete && after.complete) {
+        setToast(`Set complete — ${after.need} cards`)
+        track(EV.DAILY_SET_COMPLETED, {
+          goal_cards: after.need,
+          streak_days: currentStreak(progress, s.dailyGoal),
+        })
+      }
+      return { ...s, progress }
+    })
+  }, [])
+
+  const streak = currentStreak(state.progress, state.dailyGoal)
+  const today = todayState(state.progress, state.dailyGoal)
 
   // ── Locked Curio+ controls (R6 nested reply, R3 swipe undo) ──
   //
@@ -386,6 +419,7 @@ export default function App() {
 
     syncSave({ cardId: card.id, saved: true })
     syncScores(nextScores)
+    if (source === 'feed') countTowardToday() // a feed save IS a swipe-action (R4)
     // A feed save auto-swipes right (R4), so it is a swipe row too — without
     // this the Kept pile and the swipe history would disagree about the card.
     if (source === 'feed') syncSwipe({ cardId: card.id, action: 'interested', surface: 'feed' })
@@ -502,6 +536,8 @@ export default function App() {
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
             cardsReady={cardsReady}
+            today={today}
+            streak={streak}
             gated={gated}
             onGateHit={hitGate}
             onLockedUndo={() => lockedFeature('swipe_undo', 'Undo is a Curio+ feature')}

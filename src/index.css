@@ -1477,3 +1477,59 @@ button {
 .reply-btn.locked {
   font-size: 12px;
 }
+
+/* ── Today's set header + streak ─────────────────────────────
+   The set is finishable on purpose: a counter that ends is the
+   structural difference between a habit and a doom-scroll. */
+.set-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0 12px;
+}
+.set-head .mono {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 9.5px;
+  color: var(--ink-3);
+}
+.set-count {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 27px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  margin-top: 2px;
+}
+.streak-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--rose);
+  color: var(--on-rose);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.streak-pill .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-rose);
+}
+.set-progress {
+  height: 3px;
+  background: var(--line-2);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.set-progress .fill {
+  height: 100%;
+  background: var(--rose);
+  transition: width 0.3s var(--ease);
+}

@@ -123,6 +123,10 @@ export const EV = {
   CARD_UNSAVED: 'card_unsaved',
   SAVE_LIMIT_REACHED: 'save_limit_reached', // {kept_count: 20} — highest-intent paywall moment
 
+  // daily set + streak (redesign)
+  DAILY_SET_COMPLETED: 'daily_set_completed', // {goal_cards, streak_days}
+  DAILY_GOAL_CHANGED: 'daily_goal_changed', // {from_cards, to_cards}
+
   // pile
   KEPT_CARD_OPENED: 'kept_card_opened', // full-card reopen from Kept — the "retained" signal (G4)
 
