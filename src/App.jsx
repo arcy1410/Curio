@@ -24,6 +24,7 @@ import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib
 import { haptic } from './lib/haptics.js'
 import { storedTheme, setTheme } from './lib/theme.js'
 import {
+  GOALS,
   currentStreak,
   longestStreak,
   lastSevenDays,
@@ -189,7 +190,7 @@ export default function App() {
   }
 
   // ── Onboarding (first run) ──────────────────────────────────
-  function finishOnboarding(interests) {
+  function finishOnboarding(interests, dailyGoal = 1) {
     const scores = initialScores(interests)
     scoresRef.current = scores
     seenRef.current = new Set()
@@ -198,12 +199,17 @@ export default function App() {
       onboarded: true,
       stateVersion: STATE_VERSION, // fresh users start on current semantics — no migration notice
       interests,
+      dailyGoal,
       topicScores: scores,
       seen: [],
       kept: [],
       swipes: [],
     }))
-    track(EV.ONBOARDING_COMPLETED, { interests, interest_count: interests.length })
+    track(EV.ONBOARDING_COMPLETED, {
+      interests,
+      interest_count: interests.length,
+      goal_cards: GOALS[dailyGoal]?.cards,
+    })
     setPersonProps({ interests, interest_count: interests.length })
     syncInterests(interests)
     syncScores(scores)
