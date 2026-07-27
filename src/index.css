@@ -934,7 +934,7 @@ button {
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(4, 21, 15, 0.5);
   z-index: 40;
   display: flex;
   align-items: flex-end;
@@ -949,15 +949,15 @@ button {
 }
 .sheet {
   width: 100%;
-  max-width: 460px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--line);
-  border-bottom: none;
-  border-radius: 24px 24px 0 0;
-  max-height: 82vh;
+  max-width: 420px;
+  background: var(--bg);
+  border: none;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  max-height: 86vh;
   display: flex;
   flex-direction: column;
-  animation: slideup 0.3s var(--spring);
+  box-shadow: var(--shadow);
+  animation: slideup 0.3s var(--ease);
 }
 @keyframes slideup {
   from {
@@ -965,22 +965,25 @@ button {
   }
 }
 .sheet .grab {
-  width: 42px;
+  width: 40px;
   height: 4px;
-  background: var(--line-strong);
+  background: var(--line);
   border-radius: 999px;
-  margin: 10px auto 4px;
+  margin: 10px auto 6px;
+  flex: none;
 }
 .sheet .sheet-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 6px 20px 13px;
+  border-bottom: 1px solid var(--line-2);
 }
 .sheet .sheet-head h3 {
   font-family: var(--serif);
-  font-size: 19px;
+  font-weight: 400;
+  font-size: 22px;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 .sheet .sheet-head .x {
@@ -1003,53 +1006,59 @@ button {
   animation: riseIn 0.3s var(--ease) both;
 }
 .comment .who {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--ink);
 }
 .comment .when {
-  font-size: 11px;
-  color: var(--ink-faint);
-  margin-left: 6px;
-  font-weight: 400;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 8.5px;
+  color: var(--ink-3);
+  margin-left: 8px;
 }
 .comment .text {
-  font-size: 14px;
-  line-height: 1.5;
-  color: #d9d5cd;
-  margin: 3px 0 5px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin: 4px 0 6px;
 }
 .comment .reply-btn {
-  font-size: 12px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 9px;
   color: var(--accent);
-  font-weight: 700;
+  padding: 0;
   transition: opacity 0.15s;
 }
 .comment .reply-btn:active {
   opacity: 0.6;
 }
 .comment .replies {
-  margin-top: 10px;
-  margin-left: 14px;
-  padding-left: 12px;
-  border-left: 2px solid var(--line-strong);
+  margin-top: 12px;
+  margin-left: 4px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-2);
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 .comment-empty {
   text-align: center;
-  color: var(--ink-faint);
-  font-size: 13.5px;
-  padding: 30px 10px;
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 34px 10px;
 }
 .composer {
-  border-top: 1px solid var(--line);
-  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line-2);
+  padding: 12px 18px calc(16px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: var(--bg-elevated);
+  background: var(--bg);
 }
 .composer .replying {
   font-size: 12px;
@@ -1069,16 +1078,16 @@ button {
 .composer textarea {
   flex: 1;
   resize: none;
-  border: 1.5px solid var(--line-strong);
-  border-radius: 14px;
-  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 13px 15px;
   font-family: inherit;
-  font-size: 14px;
-  line-height: 1.4;
-  background: var(--bg-raised);
+  font-size: 15px;
+  line-height: 1.45;
+  background: var(--surface);
   color: var(--ink);
-  max-height: 100px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  max-height: 110px;
+  transition: border-color 0.2s var(--ease);
 }
 .composer textarea::placeholder {
   color: var(--ink-faint);
@@ -1089,20 +1098,19 @@ button {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .composer .send {
-  background: linear-gradient(135deg, var(--accent), #ff9a3d);
-  color: #1a0f08;
-  font-weight: 800;
-  font-size: 14px;
-  padding: 11px 18px;
-  border-radius: 14px;
-  transition: transform 0.18s var(--spring), filter 0.2s;
+  background: var(--ink);
+  color: var(--bg);
+  font-weight: 500;
+  font-size: 14.5px;
+  padding: 13px 20px;
+  border-radius: 999px;
+  transition: background 0.15s var(--ease);
 }
 .composer .send:active {
-  transform: scale(0.92);
+  background: var(--accent);
 }
 .composer .send:disabled {
-  opacity: 0.35;
-  filter: grayscale(0.6);
+  opacity: 0.3;
 }
 .composer .err {
   font-size: 12px;
@@ -1149,37 +1157,44 @@ button {
   gap: 5px;
   font-size: 11px;
   font-weight: 700;
-  color: var(--gold);
-  background: rgba(255, 207, 92, 0.12);
-  border: 1px solid rgba(255, 207, 92, 0.3);
-  padding: 4px 10px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 8.5px;
+  color: var(--ink-2);
+  background: rgba(211, 150, 140, 0.25);
+  border: none;
+  padding: 5px 10px;
   border-radius: 999px;
 }
 .plus-card {
-  background: linear-gradient(135deg, #1c1408, #2c1e0e);
-  border: 1px solid rgba(255, 207, 92, 0.25);
-  color: #f7f1e8;
-  border-radius: 20px;
+  background: var(--ink);
+  border: none;
+  color: var(--bg);
+  border-radius: 24px;
   padding: 22px;
-  text-align: center;
-  margin-top: 8px;
-  box-shadow: 0 0 40px -14px var(--gold);
+  text-align: left;
+  margin-top: 20px;
+  box-shadow: none;
 }
 .plus-card .kicker {
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--gold);
-  font-weight: 800;
+  color: var(--rose);
 }
 .plus-card h3 {
   font-family: var(--serif);
-  font-size: 24px;
-  margin: 8px 0 6px;
+  font-weight: 400;
+  font-size: 28px;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  margin: 10px 0 8px;
 }
 .plus-card p {
-  font-size: 14px;
-  color: #d9cebf;
+  font-size: 14.5px;
+  color: rgba(247, 244, 213, 0.7);
   line-height: 1.5;
   margin: 0 0 16px;
 }
@@ -1193,33 +1208,44 @@ button {
   gap: 9px;
 }
 .plus-card li {
-  font-size: 13.5px;
-  color: #ece3d6;
+  font-size: 14px;
+  color: rgba(247, 244, 213, 0.92);
   display: flex;
-  gap: 9px;
+  gap: 10px;
   align-items: flex-start;
 }
+/* 6px rose bullets, per the handoff — not glyphs. */
 .plus-card li .ic {
-  color: var(--gold);
+  color: transparent;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--rose);
+  flex: none;
+  margin-top: 7px;
+  font-size: 0;
 }
 .plus-card .buy {
   width: 100%;
-  background: linear-gradient(135deg, var(--gold), #ffe08a);
-  color: #241d16;
-  font-weight: 800;
+  height: 50px;
+  background: var(--rose);
+  color: var(--on-rose);
+  font-weight: 500;
   font-size: 15px;
-  padding: 14px;
-  border-radius: 14px;
-  transition: transform 0.18s var(--spring), box-shadow 0.2s;
-  box-shadow: 0 10px 30px -10px var(--gold);
+  border-radius: 999px;
+  transition: opacity 0.15s var(--ease);
+  box-shadow: none;
 }
 .plus-card .buy:active {
-  transform: scale(0.97);
+  opacity: 0.85;
 }
 .plus-card .fine {
-  font-size: 11px;
-  color: #a99b88;
-  margin-top: 10px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 8.5px;
+  color: rgba(247, 244, 213, 0.5);
+  margin-top: 12px;
 }
 
 /* stat tiles */
