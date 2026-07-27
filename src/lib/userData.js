@@ -173,6 +173,95 @@ export async function syncInterests(interests) {
 }
 
 /**
+ * Push everything held locally up to the signed-in account.
+ *
+ * This is the merge step the anonymous-link design was meant to avoid — and it
+ * is needed precisely where linking cannot work. A RETURNING user (second
+ * device, new browser, cleared storage) signs in to an account that already
+ * owns their Google identity, so their throwaway anonymous session cannot be
+ * linked and its activity would simply be lost. Pushing local state up after
+ * sign-in re-homes it under the real account.
+ *
+ * Order matters and the caller enforces it: hydrate() first (server → local),
+ * then this (local → server). After both, the two hold the same union, and
+ * every write is an upsert so running it twice changes nothing.
+ *
+ * HONEST LIMIT: comments are not merged. They live only on the server, owned
+ * by the anonymous user_id, and RLS means the signed-in user cannot rewrite
+ * rows they don't own — re-homing them would need a privileged endpoint. They
+ * remain visible in their threads under the name they were posted with; only
+ * the ownership stays with the old id.
+ */
+export async function pushLocalToServer(state) {
+  const w = await writer()
+  if (!w) return { pushed: 0 }
+  const uid = w.user.id
+  let pushed = 0
+
+  try {
+    const swipes = (state.swipes ?? [])
+      .filter((s) => isSyncable(s.cardId))
+      .map((s) => ({
+        user_id: uid,
+        card_id: s.cardId,
+        action: s.action === 'pass' ? 'pass' : 'interested',
+        surface: 'feed',
+      }))
+    // De-dup: the table is unique per (user, card) and a card can appear twice
+    // locally (a save records both a save and its auto-swipe).
+    const byCard = new Map(swipes.map((r) => [r.card_id, r]))
+    if (byCard.size) {
+      await w.supabase
+        .from('swipes')
+        .upsert([...byCard.values()], { onConflict: 'user_id,card_id' })
+        .then(checked('merge:swipes'))
+      pushed += byCard.size
+    }
+
+    // The 20-cap is a database trigger; sending more would fail the whole
+    // batch, so trim to the same cap the client already enforces.
+    const saves = (state.kept ?? [])
+      .filter(isSyncable)
+      .slice(0, 20)
+      .map((card_id) => ({ user_id: uid, card_id }))
+    if (saves.length) {
+      await w.supabase
+        .from('saved_cards')
+        .upsert(saves, { onConflict: 'user_id,card_id' })
+        .then(checked('merge:saves'))
+      pushed += saves.length
+    }
+
+    const scores = Object.entries(state.topicScores ?? {}).map(([topic_id, score]) => ({
+      user_id: uid,
+      topic_id,
+      score,
+      updated_at: new Date().toISOString(),
+    }))
+    if (scores.length) {
+      await w.supabase
+        .from('topic_scores')
+        .upsert(scores, { onConflict: 'user_id,topic_id' })
+        .then(checked('merge:scores'))
+      pushed += scores.length
+    }
+
+    if (state.interests?.length) {
+      await w.supabase
+        .from('profiles')
+        .update({ interests: state.interests })
+        .eq('id', uid)
+        .then(checked('merge:interests'))
+    }
+  } catch {
+    // Partial merges are fine: every write is an upsert, so the next sign-in
+    // or the next action finishes the job. Losing the attempt is not losing
+    // the data — it is still in localStorage.
+  }
+  return { pushed }
+}
+
+/**
  * Fold server history into local state.
  *
  * R9's rule: server state wins, anonymous local activity merges additively.

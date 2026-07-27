@@ -15,6 +15,7 @@ import {
   syncInterests,
   hydrate,
   mergeState,
+  pushLocalToServer,
 } from './lib/userData.js'
 import AuthWall from './components/AuthWall.jsx'
 import CardDetail from './components/CardDetail.jsx'
@@ -84,6 +85,8 @@ export default function App() {
   const reportedAuthRef = useRef(null)
   const statsRef = useRef({ swipes: 0, kept: 0 })
   statsRef.current = { swipes: state.swipes.length, kept: state.kept.length }
+  const stateRef = useRef(state)
+  stateRef.current = state
 
   /**
    * Pull this account's history down and fold it into local state.
@@ -95,9 +98,15 @@ export default function App() {
    * hydrate() returns null when the server has nothing, so a new account can
    * never blank a device that already has history.
    */
-  const restoreFromServer = useCallback(() => {
+  const restoreFromServer = useCallback((mergeUpAfter = false) => {
     hydrate().then((server) => {
-      if (!server) return
+      if (!server) {
+        // Nothing on the server for this account. If we just signed in, this
+        // is a first sign-in on a fresh account — local state is all there is,
+        // so push it up rather than leaving the account empty.
+        if (mergeUpAfter) pushLocalToServer(stateRef.current)
+        return
+      }
       setState((local) => {
         const merged = mergeState(local, server)
         // The refs feed drawNext(), so they have to move with the state or the
@@ -106,6 +115,11 @@ export default function App() {
         seenRef.current = new Set(merged.seen)
         revealedRef.current = new Set(merged.revealed ?? [])
         creditedRef.current = new Set(merged.creditedCards ?? [])
+        // Server → local is done; now local → server, so activity from an
+        // anonymous session that COULDN'T be linked (a returning user signing
+        // in on a second device) lands under the real account instead of being
+        // abandoned with the throwaway session.
+        if (mergeUpAfter) pushLocalToServer(merged)
         return merged
       })
     })
@@ -122,7 +136,10 @@ export default function App() {
       // isPermanent meant an anonymous user who cleared their app state — or
       // whose device dropped it — silently started over while their history
       // sat on the server.
-      if (user) restoreFromServer()
+      //
+      // On a NEW permanent sign-in we also merge upward — see restoreFromServer.
+      const freshSignIn = isPermanent(user) && reportedAuthRef.current !== user?.id
+      if (user) restoreFromServer(freshSignIn)
 
       if (!isPermanent(user)) {
         if (!user) reportedAuthRef.current = null // signed out; report next one
