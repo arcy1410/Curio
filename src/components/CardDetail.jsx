@@ -23,7 +23,7 @@ function hostOf(url) {
  * Body paragraphs render separately rather than as one block — a 150-word card
  * read as a wall is the thing the 2-minute promise is supposed to prevent.
  */
-export default function CardDetail({ card, onClose, onKeep, isSaved }) {
+export default function CardDetail({ card, onClose, onKeep, isSaved, onOpenComments, commentCount = 0 }) {
   useEffect(() => {
     track(EV.CARD_DETAIL_OPENED, { card_id: card.id, topic: card.topic })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -82,6 +82,25 @@ export default function CardDetail({ card, onClose, onKeep, isSaved }) {
           {card.quiz_question && (
             <div className="pull-quote">{card.quiz_question}</div>
           )}
+
+          <button
+            className="source-row discuss-row"
+            onClick={() => {
+              onOpenComments?.()
+              onClose()
+            }}
+          >
+            <span className="spine" style={{ background: 'var(--rose)' }} />
+            <span className="src-text">
+              <span className="src-title">
+                {commentCount > 0
+                  ? `${commentCount} note${commentCount === 1 ? '' : 's'} on this card`
+                  : 'Discuss this card'}
+              </span>
+              <span className="mono src-meta">Shared with everyone reading Curio</span>
+            </span>
+            <span className="arrow">→</span>
+          </button>
 
           {/* The receipts. */}
           <div className="section-head mono source-head">

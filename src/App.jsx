@@ -659,6 +659,8 @@ export default function App() {
         <CardDetail
           card={detailCard}
           isSaved={isSaved(detailCard.id)}
+          commentCount={commentCountFor(detailCard.id)}
+          onOpenComments={() => setCommentsCard(detailCard)}
           onKeep={() => toggleSave(detailCard, 'detail')}
           onClose={() => setDetailCard(null)}
         />

@@ -54,26 +54,19 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
       >
         {hostOf(card.source_url)}
       </a>
-      <div className="foot-right">
-        <button
-          className="comment-trigger"
-          onClick={(e) => {
-            e.stopPropagation()
-            onOpenComments?.()
-          }}
-        >
-          {commentCount > 0 ? `${commentCount} note${commentCount === 1 ? '' : 's'}` : 'Discuss'}
-        </button>
-        <button
-          className="why-true"
-          onClick={(e) => {
-            e.stopPropagation()
-            onGoDeeper?.()
-          }}
-        >
-          Why it&apos;s true →
-        </button>
-      </div>
+      {/* Two items only. Three (source · discuss · why-it's-true) overflowed
+          the card at phone width and wrapped outside its rounded corner.
+          Comments move into the detail sheet, which has room and is where
+          someone reading closely already is. */}
+      <button
+        className="why-true"
+        onClick={(e) => {
+          e.stopPropagation()
+          onGoDeeper?.()
+        }}
+      >
+        {commentCount > 0 ? `${commentCount} · Why it's true →` : "Why it's true →"}
+      </button>
     </div>
   )
 
