@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 import { initAnalytics, track, EV } from './lib/analytics.js'
+import { storedTheme, applyTheme } from './lib/theme.js'
+
+// Before React paints: otherwise a dark-mode user sees a cream flash on load.
+applyTheme(storedTheme())
 
 initAnalytics()
 track(EV.APP_OPENED)

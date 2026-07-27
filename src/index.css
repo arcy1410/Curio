@@ -1,37 +1,78 @@
 /* ─────────────────────────────────────────────────────────────
-   Curio — dark, high-contrast, playful. Neon accents on black,
-   springy micro-interactions, per-topic colour.
+   Curio — editorial, type-driven, calm. "Lily pond" palette:
+   cream + greens + rose. No imagery; every mark is type or shape.
+   Light is the default; dark mirrors it. (Redesign, 2026-07.)
    ───────────────────────────────────────────────────────────── */
 
+:root,
+:root[data-theme='light'] {
+  --bg: #f7f4d5;
+  --surface: #fffdf1;
+  --surface-2: #efebc6;
+  --ink: #0a3323;
+  --ink-2: #4a6b57;
+  --ink-3: #8a9c86;
+  --line: rgba(10, 51, 35, 0.14);
+  --line-2: rgba(10, 51, 35, 0.07);
+  --accent: #105666;
+  --on-accent: #f7f4d5;
+  --rose: #d3968c;
+  --on-rose: #3a1b15; /* text on rose never white — fails contrast otherwise */
+  --moss: #839958;
+  --shadow: 0 18px 40px -20px rgba(10, 51, 35, 0.45);
+}
+
+:root[data-theme='dark'] {
+  --bg: #07231a;
+  --surface: #0a3323;
+  --surface-2: #0e3d2a;
+  --ink: #f7f4d5;
+  --ink-2: #b7cdb3;
+  --ink-3: #7c9a85;
+  --line: rgba(247, 244, 213, 0.16);
+  --line-2: rgba(247, 244, 213, 0.08);
+  --accent: #4fa3ad;
+  --on-accent: #052018;
+  --rose: #d3968c;
+  --on-rose: #3a1b15;
+  --moss: #9db472;
+  --shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.7);
+}
+
+/* Compatibility aliases.
+   The old dark theme's names are referenced ~85 times across components. Rather
+   than a risky find-and-replace over every rule, they're re-pointed at the new
+   palette here: each screen then gets restyled deliberately on top of a base
+   that is already theme-correct in both light and dark. Delete an alias once
+   nothing references it. */
 :root {
-  --bg: #08080a;
-  --bg-elevated: #16161b;
-  --bg-raised: #1e1e25;
-  --ink: #f5f3ee;
-  --ink-soft: #b6b1a8;
-  --ink-faint: #7c7770;
-  --line: #26262e;
-  --line-strong: #34343e;
+  --bg-elevated: var(--surface);
+  --bg-raised: var(--surface-2);
+  --ink-soft: var(--ink-2);
+  --ink-faint: var(--ink-3);
+  --line-strong: var(--line);
+  --keep: var(--rose); /* right-swipe is "Keep" — rose, per the redesign */
+  --keep-soft: rgba(211, 150, 140, 0.25);
+  --pass: var(--accent); /* left is "Later", not a rejection: accent, not red */
+  --pass-soft: rgba(16, 86, 102, 0.16);
+  --gold: var(--moss);
+  --shadow-card: var(--shadow);
+  --shadow-soft: var(--shadow);
+}
 
-  --accent: #ff6a3d; /* electric coral */
-  --accent-soft: rgba(255, 106, 61, 0.16);
-  --keep: #3ddc84; /* neon green */
-  --keep-soft: rgba(61, 220, 132, 0.16);
-  --pass: #ff5a6e; /* hot red */
-  --pass-soft: rgba(255, 90, 110, 0.16);
-  --gold: #ffcf5c;
-
+:root {
   --topic: var(--accent); /* overridden per-card inline */
 
-  --serif: 'Iowan Old Style', 'Charter', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.55);
-  --shadow-soft: 0 2px 10px rgba(0, 0, 0, 0.4);
   --radius: 22px;
+  --radius-card: 28px;
+  --radius-sheet: 30px;
 
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* overshoot / bouncy */
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+  --spring: cubic-bezier(0.2, 0.8, 0.3, 1); /* redesign: no overshoot, calm */
 }
 
 * {
@@ -54,48 +95,16 @@ body {
   text-rendering: optimizeLegibility;
   overscroll-behavior: none;
   overflow-x: hidden;
+  transition: background 0.3s var(--ease), color 0.3s var(--ease);
 }
 
-/* Living background: slow-drifting neon blobs behind everything. */
-body::before,
-body::after {
-  content: '';
-  position: fixed;
-  z-index: 0;
-  width: 60vmax;
-  height: 60vmax;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.22;
-  pointer-events: none;
-}
-body::before {
-  background: radial-gradient(circle, #ff6a3d, transparent 60%);
-  top: -20vmax;
-  left: -18vmax;
-  animation: drift1 22s var(--ease) infinite alternate;
-}
-body::after {
-  background: radial-gradient(circle, #43b7ff, transparent 60%);
-  bottom: -22vmax;
-  right: -18vmax;
-  animation: drift2 26s var(--ease) infinite alternate;
-}
-@keyframes drift1 {
-  to {
-    transform: translate(12vmax, 10vmax) scale(1.2);
-  }
-}
-@keyframes drift2 {
-  to {
-    transform: translate(-12vmax, -8vmax) scale(1.15);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  body::before,
-  body::after {
-    animation: none;
-  }
+/* A monospaced label — topic tags, sources, timestamps, section heads. */
+.mono {
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 10px;
+  color: var(--ink-3);
 }
 
 button {
@@ -119,56 +128,45 @@ button {
 
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  padding: 16px 20px 10px;
+  padding: 14px 22px 10px;
   position: sticky;
   top: 0;
   z-index: 20;
-  background: linear-gradient(var(--bg) 60%, rgba(8, 8, 10, 0));
+  background: var(--bg);
 }
 
 .wordmark {
   font-family: var(--serif);
-  font-size: 27px;
-  font-weight: 600;
+  font-size: 26px;
+  font-weight: 400;
   letter-spacing: -0.02em;
+  line-height: 1.02;
 }
 .wordmark .dot {
-  color: var(--accent);
-  display: inline-block;
-  animation: pulseDot 1.8s ease-in-out infinite;
-}
-@keyframes pulseDot {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-    text-shadow: 0 0 0 var(--accent);
-  }
-  50% {
-    transform: scale(1.4);
-    opacity: 0.75;
-    text-shadow: 0 0 16px var(--accent);
-  }
+  color: var(--rose);
 }
 
 .topbar .sub {
-  font-size: 12px;
-  color: var(--ink-faint);
-  letter-spacing: 0.02em;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
 }
 
 .iconbtn {
-  font-size: 13px;
-  color: var(--ink-soft);
-  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+  padding: 7px 13px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  background: var(--bg-elevated);
-  transition: transform 0.15s var(--spring);
+  background: var(--surface);
+  transition: background 0.15s var(--ease);
 }
 .iconbtn:active {
-  transform: scale(0.9);
+  background: var(--surface-2);
 }
 
 .screen {
@@ -1088,53 +1086,52 @@ button {
   width: 100%;
   max-width: 460px;
   display: flex;
-  background: rgba(16, 16, 20, 0.82);
-  backdrop-filter: saturate(1.4) blur(16px);
-  border-top: 1px solid var(--line);
-  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+  justify-content: center;
+  gap: 8px;
+  background: var(--surface);
+  border-top: 1px solid var(--line-2);
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
   z-index: 30;
 }
+
 .navitem {
-  flex: 1;
+  width: 66px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
+  font-family: var(--mono);
   font-size: 10.5px;
-  color: var(--ink-faint);
-  padding: 4px 0;
-  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  padding: 2px 0;
+  font-weight: 400;
   position: relative;
-  transition: color 0.2s;
+  transition: color 0.2s var(--ease);
 }
+
+/* Icons are CSS shapes, not glyphs — the design ships no assets. Inactive is
+   an outline; active fills. Wander is the round one. */
 .navitem .ic {
-  font-size: 21px;
-  line-height: 1;
-  transition: transform 0.3s var(--spring), filter 0.2s;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1.5px solid currentColor;
+  background: transparent;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.navitem[data-tab='discover'] .ic {
+  border-radius: 50%;
 }
 .navitem.on {
   color: var(--ink);
 }
 .navitem.on .ic {
-  transform: translateY(-2px) scale(1.15);
-  filter: drop-shadow(0 0 8px var(--accent));
+  background: currentColor;
 }
-.navitem:active .ic {
-  transform: scale(0.85);
-}
-/* glowing dot under the active tab */
-.navitem.on::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 10px 1px var(--accent);
-  animation: popIn 0.3s var(--spring);
-}
-.navitem .badge {
+
+.navitem .badge.navitem .badge {
   position: absolute;
   transform: translate(15px, -8px);
   background: var(--accent);

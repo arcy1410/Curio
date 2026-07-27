@@ -557,13 +557,14 @@ export default function App() {
 
       <nav className="bottomnav">
         {[
-          { id: 'feed', ic: '🗂️', label: 'Feed' },
-          { id: 'discover', ic: '🔍', label: 'Discover' },
-          { id: 'kept', ic: '📌', label: 'Kept', badge: keptCards.length },
-          { id: 'profile', ic: '👤', label: 'You' },
+          { id: 'feed', label: 'Feed' },
+          { id: 'discover', label: 'Wander' },
+          { id: 'kept', label: 'Kept', badge: keptCards.length },
+          { id: 'profile', label: 'You' },
         ].map((item) => (
           <button
             key={item.id}
+            data-tab={item.id}
             className={`navitem ${tab === item.id ? 'on' : ''}`}
             onClick={() => {
               haptic.nav()
@@ -571,7 +572,7 @@ export default function App() {
               setTab(item.id)
             }}
           >
-            <span className="ic">{item.ic}</span>
+            <span className="ic" />
             {item.badge ? <span className="badge">{item.badge}</span> : null}
             {item.label}
           </button>
