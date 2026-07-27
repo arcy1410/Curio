@@ -187,20 +187,30 @@ export default function App() {
     return () => clearTimeout(t)
   }, [toast])
 
-  // ── Migration notice (R8): semantics changed under this user's habits ──
-  const needsMigrationNotice = state.onboarded && state.stateVersion < STATE_VERSION
+  // ── R8 state version ────────────────────────────────────────
+  //
+  // The blocking "what changed" modal is gone. It existed because a gesture's
+  // MEANING changed invisibly — right-swipe stopped saving — and an invisible
+  // change to a habit is the one case that earns an interruption.
+  //
+  // The redesign removed that condition: the controls are now labelled in
+  // words (Later · Like · Keep), so a returning user reads what each one does
+  // instead of discovering it. A modal explaining labelled buttons is friction
+  // with nothing to justify it, and it greeted every existing user on open.
+  //
+  // The versioning itself stays — it costs nothing and the next semantic
+  // change may genuinely need it. It just migrates silently now.
   useEffect(() => {
-    if (needsMigrationNotice) {
-      track(EV.MIGRATION_NOTICE_SHOWN, { from_version: state.stateVersion, to_version: STATE_VERSION })
+    if (state.onboarded && state.stateVersion < STATE_VERSION) {
+      track(EV.MIGRATION_NOTICE_SHOWN, {
+        from_version: state.stateVersion,
+        to_version: STATE_VERSION,
+        surface: 'silent',
+      })
+      setState((s) => ({ ...s, stateVersion: STATE_VERSION }))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsMigrationNotice])
-
-  function dismissMigrationNotice() {
-    haptic.tap()
-    track(EV.MIGRATION_NOTICE_DISMISSED, { from_version: state.stateVersion, to_version: STATE_VERSION })
-    setState((s) => ({ ...s, stateVersion: STATE_VERSION }))
-  }
+  }, [])
 
   // ── Onboarding (first run) ──────────────────────────────────
   function finishOnboarding(interests, dailyGoal = 1) {
@@ -701,24 +711,6 @@ export default function App() {
 
       {/* R8: one-time semantics-change notice for returning users. Dims but
           never hides the content underneath; explicit dismiss only. */}
-      {needsMigrationNotice && (
-        <div className="migration-backdrop">
-          <div className="migration-notice">
-            <div className="mn-kicker">What changed</div>
-            <h3>Swipes work differently now</h3>
-            <p>
-              Right swipe = <b>Interested</b> — it tunes your feed but{' '}
-              <b>doesn&apos;t save</b> anymore. Tap <b>🔖 Save</b> to keep a card
-              — it saves <em>and</em> moves to the next one.
-            </p>
-            <p className="mn-fine">Your kept cards and tuned feed are untouched.</p>
-            <button className="btn-primary" onClick={dismissMigrationNotice}>
-              Got it
-            </button>
-          </div>
-        </div>
-      )}
-
       {toast && <div className="toast">{toast}</div>}
     </div>
   )

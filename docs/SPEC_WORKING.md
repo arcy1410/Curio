@@ -485,6 +485,24 @@ are new work items (today's code grants only the flat +4).
 
 ### R8 — Returning-user migration cue
 
+> **RETIRED 2026-07, and worth recording why.** R8 existed because a
+> gesture's *meaning* changed invisibly — right-swipe stopped saving — and an
+> invisible change to an existing habit is the one case that earns
+> interrupting someone. The redesign removed that condition: the controls are
+> now **labelled in words** (Later · Like · Keep), so a returning user *reads*
+> what each does instead of discovering it. A modal explaining labelled
+> buttons is friction with nothing left to justify it, and it greeted every
+> existing user on open.
+>
+> The `stateVersion` field stays and still migrates — silently now, still
+> emitting `migration_notice_shown {surface: 'silent'}` so a semantics change
+> remains countable. If a future change alters what a gesture *means* without
+> altering what it *says*, R8's argument applies again and the cue comes back.
+>
+> The original requirement is kept below rather than deleted: N2 (Rohan's
+> silent habit break) is a real narrative, and the reasoning that answered it
+> is the useful part.
+
 **Trigger:** an onboarded user opens the app with stored state created
 under older interaction semantics — detected via a `stateVersion` field in
 the persisted localStorage blob (absent = the old "right swipe = Keep"
@@ -968,7 +986,7 @@ items this spec created.
 | 1 | Session-length event (§6) | 5 | 8 | 2 | 15 | 1 | **15.0** |
 | 2 | Kept full-card reopen (G4) | 13 | 8 | 5 | 26 | 2 | **13.0** |
 | 3 | Save auto-swipe + 20-cap (R4) | 8 | 8 | 3 | 19 | 3 | **6.3** |
-| 4 | Migration cue (R8) | 5 | 5 | 2 | 12 | 2 | **6.0** |
+| 4 | ~~Migration cue (R8)~~ → retired, labels replaced it | — | — | — | — | — | **cut** |
 | 5 | Content pipeline (R10) | 20 | 13 | 20 | 53 | 13 | **4.1** |
 | 6 | New-topic parity boost (R7) | 5 | 2 | 1 | 8 | 2 | **4.0** |
 | 7 | Locked nested-reply (R6) | 3 | 1 | 2 | 6 | 2 | **3.0** |
