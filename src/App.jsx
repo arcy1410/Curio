@@ -13,6 +13,8 @@ import {
   signOut,
   ensureDisplayName,
   consumeAuthError,
+  isAlreadyLinkedError,
+  signInDirect,
 } from './lib/session.js'
 import {
   syncSwipe,
@@ -136,10 +138,33 @@ export default function App() {
   // still signed out.
   useEffect(() => {
     const authError = consumeAuthError()
-    if (authError) {
-      setToast(`Sign-in failed: ${authError}`)
-      track(EV.SIGNUP_FAILED, { reason: 'callback_error', detail: authError.slice(0, 80) })
+    if (!authError) return
+
+    // "Identity is already linked to another user" is not a failure the user
+    // should have to read, let alone act on — it means they already HAVE an
+    // account and we tried to attach their Google to a throwaway one instead.
+    // linkIdentity() returns a URL happily and only fails server-side after
+    // the round trip, so this is the first moment the app can know. Retry
+    // once as a plain sign-in, which lands them in their real account; their
+    // local activity merges up afterwards.
+    if (isAlreadyLinkedError(authError)) {
+      let alreadyRetried = false
+      try {
+        alreadyRetried = sessionStorage.getItem('curio.link.blocked') === '1'
+        sessionStorage.setItem('curio.link.blocked', '1') // don't link again this session
+      } catch {
+        // storage unavailable — fall through to the visible error
+      }
+      if (!alreadyRetried) {
+        track(EV.SIGNUP_FAILED, { reason: 'already_linked_retrying' })
+        setToast('Signing you in…')
+        signInDirect()
+        return
+      }
     }
+
+    setToast(`Sign-in failed: ${authError}`)
+    track(EV.SIGNUP_FAILED, { reason: 'callback_error', detail: authError.slice(0, 80) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

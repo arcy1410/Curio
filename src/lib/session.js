@@ -153,6 +153,41 @@ export function ensureUser() {
  * account: they get all of it back, and the throwaway anonymous session is
  * what's abandoned.
  */
+/**
+ * True when the OAuth callback failed because this Google account already
+ * belongs to a Curio account — i.e. a returning user on a second device, in a
+ * new browser, or after clearing storage.
+ */
+export function isAlreadyLinkedError(message = '') {
+  return /already linked|already associated|already registered|identity_already_exists/i.test(message)
+}
+
+/**
+ * Sign in WITHOUT attempting to link — used to recover from the above.
+ *
+ * Signs the user into the account that already owns their Google identity.
+ * The anonymous session is replaced, and App merges its local activity up
+ * afterwards (pushLocalToServer), so nothing the user did is lost.
+ */
+export async function signInDirect() {
+  const supabase = await getClient()
+  if (!supabase) return { error: 'Sign-in is unavailable right now.' }
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+    })
+    if (error) throw error
+    if (data?.url) {
+      window.location.assign(data.url)
+      return {}
+    }
+    return { error: 'Sign-in did not return a URL.' }
+  } catch (error) {
+    return { error: `Sign-in failed: ${`${error?.message ?? error}`.slice(0, 120)}` }
+  }
+}
+
 export async function signInWithGoogle() {
   const supabase = await getClient()
   if (!supabase) return { error: 'Sign-in is unavailable right now.' }
@@ -180,8 +215,18 @@ export async function signInWithGoogle() {
   try {
     const user = await ensureUser()
 
+    // A previous attempt already told us linking can't work for this person —
+    // don't send them through a round trip that will fail again.
+    const linkKnownBad = (() => {
+      try {
+        return sessionStorage.getItem('curio.link.blocked') === '1'
+      } catch {
+        return false
+      }
+    })()
+
     // Anonymous: try to ATTACH Google so this account's history survives.
-    if (user?.is_anonymous) {
+    if (user?.is_anonymous && !linkKnownBad) {
       const { data, error } = await supabase.auth.linkIdentity(options)
       if (!error && go(data?.url)) return {}
 
