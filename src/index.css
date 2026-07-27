@@ -607,6 +607,8 @@ button {
   margin: 0;
   overflow-y: auto;
   flex: 1;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 .card .dek::-webkit-scrollbar {
   width: 0;
@@ -641,6 +643,10 @@ button {
   background: var(--surface-2);
   overflow-y: auto;
   display: block;
+  /* The browser handles vertical panning here instead of handing the gesture
+     to the card's drag logic. */
+  touch-action: pan-y;
+  overscroll-behavior: contain;
 }
 .answer-panel.open::-webkit-scrollbar {
   width: 0;
@@ -2240,6 +2246,8 @@ button {
 .detail-body {
   flex: 1;
   overflow-y: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   padding: 20px 20px 24px;
   -webkit-overflow-scrolling: touch;
 }

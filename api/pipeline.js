@@ -51,7 +51,16 @@ const TOPIC_SOURCES = {
     guardianQuery: 'cricket AND (India OR Indian OR IPL)',
     titleMustMatch: /\b(india|indian|ipl|kohli|rohit|bumrah|bcci|ranji|mumbai|chennai|kolkata)\b/i,
     topicMustMatch: /\b(cricket|ipl|test match|odi|twenty20|t20|bcci|ranji|wicket|batting|bowling)\b/i,
-    seeds: ['Indian Premier League', 'India national cricket team', 'Cricket World Cup'],
+    seeds: [
+      'Indian Premier League',
+      'India national cricket team',
+      'Cricket World Cup',
+      'Sachin Tendulkar',
+      'Ranji Trophy',
+      'Test cricket',
+      'Eden Gardens',
+      'Duckworth–Lewis–Stern method',
+    ],
   },
   markets: {
     guardianSection: 'business',
@@ -59,14 +68,33 @@ const TOPIC_SOURCES = {
     titleMustMatch: /\b(india|indian|rupee|sensex|nifty|mumbai|adani|ambani|reliance|rbi)\b/i,
     topicMustMatch:
       /\b(econom\w*|market\w*|stock\w*|share\w*|trade|tariff|bank\w*|financ\w*|rupee|sensex|nifty|exchange|inflation|invest\w*|compan\w*|industr\w*|startup)\b/i,
-    seeds: ['BSE SENSEX', 'NIFTY 50', 'Reserve Bank of India'],
+    seeds: [
+      'BSE SENSEX',
+      'NIFTY 50',
+      'Reserve Bank of India',
+      'Bombay Stock Exchange',
+      'Harshad Mehta',
+      'Indian rupee',
+      'Demonetisation in India',
+      'Securities and Exchange Board of India',
+      'Initial public offering',
+    ],
   },
   bollywood: {
     guardianSection: 'film',
     guardianQuery: 'Bollywood OR "Hindi cinema" OR "Indian film"',
     titleMustMatch: /\b(bollywood|hindi|india|indian|khan|bachchan|kapoor|mumbai)\b/i,
     topicMustMatch: /\b(film\w*|cinema|movie\w*|bollywood|actor|actress|director|screenplay|filmfare|soundtrack)\b/i,
-    seeds: ['Bollywood', 'Cinema of India', 'Filmfare Awards'],
+    seeds: [
+      'Bollywood',
+      'Cinema of India',
+      'Filmfare Awards',
+      'Satyajit Ray',
+      'Lata Mangeshkar',
+      'Mughal-e-Azam',
+      'Dilwale Dulhania Le Jayenge',
+      'Playback singing',
+    ],
   },
   hollywood: {
     // The counterpart to `bollywood`, not a replacement for it: bollywood
@@ -120,7 +148,17 @@ const TOPIC_SOURCES = {
     // says nothing.
     topicMustMatch:
       /\b(histor\w*|ancient|medieval|centur\w*|empire|dynast\w*|kingdom|civilisation|civilization|archaeolog\w*|hindu\w*|buddhis\w*|jain\w*|deit\w*|temple|mughal|maurya|gupta|colonial|partition|independence movement|heritage|monument)\b/i,
-    seeds: ['History of India', 'Maurya Empire', 'Indus Valley Civilisation'],
+    seeds: [
+      'History of India',
+      'Maurya Empire',
+      'Indus Valley Civilisation',
+      'Ashoka',
+      'Gupta Empire',
+      'Chola dynasty',
+      'Nalanda mahavihara',
+      'Ajanta Caves',
+      'Partition of India',
+    ],
   },
 }
 

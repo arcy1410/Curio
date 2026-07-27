@@ -113,10 +113,16 @@ export function ensureUser() {
  * there is nothing to migrate.
  *
  * That is the whole reason this design has no merge step, and it depends on
- * "Manual Linking" being enabled in the Supabase dashboard. If it isn't,
- * linkIdentity fails and we deliberately do NOT fall back to signInWithOAuth:
- * silently orphaning someone's Kept pile is far worse than a failed sign-in
- * they can retry.
+ * "Manual Linking" being enabled in the Supabase dashboard.
+ *
+ * REVISED: linking only works for a Google account Curio has never seen. A
+ * RETURNING user — second device, new browser, cleared storage — is trying to
+ * attach an identity that already belongs to their real account, and linking
+ * correctly refuses. The original code treated that as fatal, which locked
+ * every returning user out of their own history. It now falls back to a plain
+ * sign-in, which is the right answer precisely because they already have an
+ * account: they get all of it back, and the throwaway anonymous session is
+ * what's abandoned.
  */
 export async function signInWithGoogle() {
   const supabase = await getClient()
@@ -126,17 +132,38 @@ export async function signInWithGoogle() {
 
   try {
     const user = await ensureUser()
-    const { error } =
-      user && user.is_anonymous
-        ? await supabase.auth.linkIdentity(options)
-        : await supabase.auth.signInWithOAuth(options)
-    if (error) throw error
-    return {} // the browser is navigating to Google; nothing after this runs
-  } catch (error) {
-    const raw = `${error?.message ?? ''}`
+
+    // Already permanent, or no session at all — an ordinary sign-in.
+    if (!user || !user.is_anonymous) {
+      const { error } = await supabase.auth.signInWithOAuth(options)
+      if (error) throw error
+      return {}
+    }
+
+    // Anonymous: try to ATTACH Google to this account so its history survives.
+    const { error: linkError } = await supabase.auth.linkIdentity(options)
+    if (!linkError) return {} // navigating to Google
+
+    // Linking fails when that Google account is ALREADY attached to another
+    // Curio account — i.e. this person has signed in before, on another
+    // device or before clearing their storage. Which is most returning users.
+    //
+    // Falling back to a plain sign-in is the right outcome here, even though
+    // it abandons the throwaway anonymous session: they get their REAL
+    // account back, with every swipe, save and comment they have ever made.
+    // The alternative — refusing, to protect a few anonymous swipes — locks a
+    // returning user out of their own history, which is far worse. (An
+    // untouched first-time link still takes the branch above, so nothing is
+    // orphaned in the case linking was designed for.)
+    const raw = `${linkError?.message ?? ''}`
     if (/manual linking|not enabled/i.test(raw)) {
       return { error: 'Sign-in is misconfigured — please tell us.' }
     }
+
+    const { error } = await supabase.auth.signInWithOAuth(options)
+    if (error) throw error
+    return {}
+  } catch (error) {
     return { error: 'Could not reach Google sign-in. Try again.' }
   }
 }

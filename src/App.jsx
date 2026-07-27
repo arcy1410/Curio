@@ -154,11 +154,19 @@ export default function App() {
   // The gate opens on the 8th swipe-action; saves count as swipes (R4).
   const gated = !signedIn && state.swipes.length >= FREE_SWIPE_ACTIONS
 
+  // Dismissing the wall means "not now" — and re-opening it on the very next
+  // swipe makes that answer meaningless. R9 still fails closed (the swipe is
+  // still blocked), but after one dismissal the block is a quiet toast rather
+  // than a modal, and Sign in stays permanently available on You.
+  const wallDismissedRef = useRef(false)
   const hitGate = useCallback(() => {
+    if (wallDismissedRef.current) {
+      setToast('Sign in to keep swiping — see You')
+      return
+    }
     setWallOpen(true)
-    track(EV.SIGNUP_GATE_SHOWN, { swipe_count: state.swipes.length })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.swipes.length])
+    track(EV.SIGNUP_GATE_SHOWN, { swipe_count: statsRef.current.swipes })
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -759,7 +767,10 @@ export default function App() {
         <AuthWall
           swipeCount={state.swipes.length}
           keptCount={state.kept.length}
-          onDismiss={() => setWallOpen(false)}
+          onDismiss={() => {
+            wallDismissedRef.current = true
+            setWallOpen(false)
+          }}
         />
       )}
 

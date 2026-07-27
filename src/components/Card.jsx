@@ -122,7 +122,17 @@ export default function Card({
             {card.quiz_question}
           </h2>
 
-          <div className={`answer-panel ${revealed ? 'open' : ''}`}>
+          {/* Scrolling a revealed answer was impossible on touch: the card's
+              drag handler claimed the gesture, so a vertical swipe moved the
+              card instead of the text. Stopping pointerdown here keeps the
+              drag from starting, and touch-action:pan-y (CSS) tells the
+              browser this area scrolls vertically. */}
+          <div
+            className={`answer-panel ${revealed ? 'open' : ''}`}
+            onPointerDown={(e) => {
+              if (revealed) e.stopPropagation()
+            }}
+          >
             {revealed ? (
               <div className="answer-inner">
                 {card.stat && (
@@ -166,7 +176,9 @@ export default function Card({
       ) : (
         <>
           <h2 className={card.title.length > 52 ? 'long' : ''}>{card.title}</h2>
-          <p className="dek">{card.body}</p>
+          <p className="dek" onPointerDown={(e) => e.stopPropagation()}>
+            {card.body}
+          </p>
         </>
       )}
 
