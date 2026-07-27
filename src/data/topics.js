@@ -6,7 +6,7 @@ export const TOPICS = [
     id: 'cricket',
     name: 'Cricket',
     emoji: '🏏',
-    color: '#3ddc84', // neon green
+    color: '#105666', // midnight green
     blurb: 'The game that stops the country.',
     subtopics: ['Indian Cricket', 'World Cups', 'IPL', 'Records'],
   },
@@ -14,7 +14,7 @@ export const TOPICS = [
     id: 'markets',
     name: 'Markets',
     emoji: '📈',
-    color: '#ffb020', // amber
+    color: '#839958', // moss
     blurb: 'Money, mania, and how it all moves.',
     subtopics: ['Stock Market', 'Personal Finance', 'Scandals'],
   },
@@ -22,7 +22,7 @@ export const TOPICS = [
     id: 'bollywood',
     name: 'Bollywood',
     emoji: '🎬',
-    color: '#ff4d8d', // hot pink
+    color: '#D3968C', // rosy brown
     blurb: 'A century of song, spectacle and stars.',
     subtopics: ['Classics', 'Awards', 'Behind the Scenes'],
   },
@@ -30,7 +30,7 @@ export const TOPICS = [
     id: 'history',
     name: 'History',
     emoji: '🏛️',
-    color: '#43b7ff', // electric blue
+    color: '#0A3323', // dark green
     blurb: 'Where the subcontinent came from.',
     subtopics: ['Ancient India', 'Medieval India', 'Science & Math'],
   },

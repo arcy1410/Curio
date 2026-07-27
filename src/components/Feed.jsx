@@ -183,7 +183,10 @@ export default function Feed({
   }, [ready, deck.length])
 
   return (
-    <div>
+    // feed-root, not a bare div: .screen is a flex column and this sits
+    // between it and .deck-wrap. Without joining the flex chain the deck never
+    // gets the leftover height, so the card clipped its own footer.
+    <div className="feed-root">
       {/* Today's set. The counter and bar exist to make the set FINISHABLE —
           a feed with no end is the doom-scroll shape this product is
           deliberately not (NG3). */}
@@ -283,44 +286,52 @@ export default function Feed({
 
         {deck.length > 0 && (
           <>
+            {/* Three controls, per the handoff: Later · Go deeper · Keep.
+                The old five-emoji row was a holdover — it crowded the deck and
+                gave equal weight to actions that aren't equally important.
+                "Go deeper" is the wide one because opening the source is the
+                behaviour this product most wants to encourage. */}
             <div className="actions">
-              {/* Swipe undo is Curio+ (R3). Visible and tappable from the
-                  start, so the escape hatch is a known boundary rather than
-                  something discovered at the worst possible moment — right
-                  after a mis-swipe. It never undoes anything in this release. */}
               <button
-                className="round small locked"
-                onClick={onLockedUndo}
-                aria-label="Undo last swipe — Curio+"
-                disabled={swipeCount === 0}
+                className="act-circle"
+                onClick={() => trigger('pass')}
+                aria-label="Later"
               >
-                🔒↩
+                Later
               </button>
-              <button className="round pass" onClick={() => trigger('pass')} aria-label="Pass">
-                ✕
-              </button>
+
               <button
-                className="round small"
+                className="act-deeper"
                 onClick={() => {
                   haptic.open()
                   onOpenComments(deck[0])
                 }}
-                aria-label="Comments"
               >
-                💬
+                Go deeper
               </button>
+
               <button
-                className={`round small save ${topSaved ? 'on' : ''}`}
+                className={`act-circle keep ${topSaved ? 'on' : ''}`}
                 onClick={saveTop}
-                aria-label={topSaved ? 'Saved' : 'Save'}
+                aria-label={topSaved ? 'Saved' : 'Keep'}
               >
-                🔖
-              </button>
-              <button className="round keep" onClick={() => trigger('interested')} aria-label="Interested">
-                👍
+                {topSaved ? 'Kept' : 'Keep'}
               </button>
             </div>
-            <div className="action-hint">← Pass · Interested → &nbsp;·&nbsp; 🔖 Save to keep</div>
+
+            <div className="hint-row">
+              <span className="action-hint mono">drag the card · ← later · keep →</span>
+              {/* R3: visible-but-locked, kept out of the primary row so it
+                  doesn't compete with the three actions that actually work. */}
+              <button
+                className="undo-locked mono"
+                onClick={onLockedUndo}
+                disabled={swipeCount === 0}
+                aria-label="Undo last swipe — Curio+"
+              >
+                🔒 undo
+              </button>
+            </div>
           </>
         )}
       </div>

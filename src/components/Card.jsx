@@ -85,15 +85,27 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
       {!hasQuiz && <div className="topic-rule" />}
 
       <div className="card-top">
+        {/* Subtopic is dropped from the quiz header — "GUESS FIRST · HISTORY ·
+            MEDIEVAL INDIA" wrapped to two lines and pushed the card down. */}
         <span className="mono">
-          {hasQuiz ? `Guess first · ${topicLabel}` : topicLabel}
+          {hasQuiz ? `Guess first · ${topicName(card.topic)}` : topicLabel}
         </span>
         <span className="mono readtime">2 min</span>
       </div>
 
       {hasQuiz ? (
         <>
-          <h2 className="quiz-q">{card.quiz_question}</h2>
+          {/* Curio's real questions run longer than the handoff's sample
+              ("Where do most of an octopus's neurons live?"). Without stepping
+              the size down, a 3-line question crushes the answer panel and the
+              Reveal button overflows the card. */}
+          <h2
+            className={`quiz-q ${
+              card.quiz_question.length > 64 ? 'longer' : card.quiz_question.length > 46 ? 'long' : ''
+            }`}
+          >
+            {card.quiz_question}
+          </h2>
 
           <div className={`answer-panel ${revealed ? 'open' : ''}`}>
             {revealed ? (
