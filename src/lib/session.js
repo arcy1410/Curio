@@ -128,43 +128,54 @@ export async function signInWithGoogle() {
   const supabase = await getClient()
   if (!supabase) return { error: 'Sign-in is unavailable right now.' }
 
-  const options = { provider: 'google', options: { redirectTo: window.location.origin } }
+  // skipBrowserRedirect: we navigate ourselves.
+  //
+  // Letting Supabase perform the redirect worked on desktop and failed on
+  // phones. By the time it fires we are several awaits from the tap — a
+  // dynamic import, a session check, then the link attempt — and mobile
+  // browsers refuse navigation that is no longer attached to a user gesture.
+  // Taking the URL and assigning location ourselves is a plain top-level
+  // navigation, which is always allowed, and it lets us report the real error
+  // instead of guessing.
+  const options = {
+    provider: 'google',
+    options: { redirectTo: window.location.origin, skipBrowserRedirect: true },
+  }
+
+  const go = (url) => {
+    if (!url) return false
+    window.location.assign(url)
+    return true
+  }
 
   try {
     const user = await ensureUser()
 
-    // Already permanent, or no session at all — an ordinary sign-in.
-    if (!user || !user.is_anonymous) {
-      const { error } = await supabase.auth.signInWithOAuth(options)
-      if (error) throw error
-      return {}
+    // Anonymous: try to ATTACH Google so this account's history survives.
+    if (user?.is_anonymous) {
+      const { data, error } = await supabase.auth.linkIdentity(options)
+      if (!error && go(data?.url)) return {}
+
+      const raw = `${error?.message ?? ''}`
+      if (/manual linking|not enabled/i.test(raw)) {
+        return { error: 'Sign-in is misconfigured — please tell us.' }
+      }
+      // Linking is refused when that Google account already belongs to another
+      // Curio account — i.e. a returning user on a second device or after
+      // clearing storage. Signing them into their real account is correct;
+      // App merges this session's activity into it afterwards.
     }
 
-    // Anonymous: try to ATTACH Google to this account so its history survives.
-    const { error: linkError } = await supabase.auth.linkIdentity(options)
-    if (!linkError) return {} // navigating to Google
-
-    // Linking fails when that Google account is ALREADY attached to another
-    // Curio account — i.e. this person has signed in before, on another
-    // device or before clearing their storage. Which is most returning users.
-    //
-    // Falling back to a plain sign-in is the right outcome here, even though
-    // it abandons the throwaway anonymous session: they get their REAL
-    // account back, with every swipe, save and comment they have ever made.
-    // The alternative — refusing, to protect a few anonymous swipes — locks a
-    // returning user out of their own history, which is far worse. (An
-    // untouched first-time link still takes the branch above, so nothing is
-    // orphaned in the case linking was designed for.)
-    const raw = `${linkError?.message ?? ''}`
-    if (/manual linking|not enabled/i.test(raw)) {
-      return { error: 'Sign-in is misconfigured — please tell us.' }
-    }
-
-    const { error } = await supabase.auth.signInWithOAuth(options)
+    const { data, error } = await supabase.auth.signInWithOAuth(options)
     if (error) throw error
-    return {}
+    if (go(data?.url)) return {}
+    return { error: 'Sign-in did not return a URL. Try again.' }
   } catch (error) {
-    return { error: 'Could not reach Google sign-in. Try again.' }
+    // Surfaced, not swallowed: a generic message here cost two rounds of
+    // guessing at a bug the error text would have named.
+    const raw = `${error?.message ?? error}`
+    if (import.meta.env.DEV) console.error('[signin]', error)
+    return { error: `Sign-in failed: ${raw.slice(0, 120)}` }
   }
 }
 
