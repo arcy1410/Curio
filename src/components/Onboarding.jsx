@@ -125,7 +125,7 @@ export default function Onboarding({
                 <button
                   key={t.id}
                   className={`topic-tile ${picked.has(t.id) ? 'on' : ''}`}
-                  style={{ '--tile': t.color }}
+                  style={{ '--tile': t.color, '--on-tile': t.onColor }}
                   onClick={() => toggle(t.id)}
                   aria-pressed={picked.has(t.id)}
                 >

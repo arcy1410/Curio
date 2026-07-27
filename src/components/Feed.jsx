@@ -33,6 +33,7 @@ export default function Feed({
   gated = false, // R9: swipe-actions blocked until they sign in
   onGateHit = () => {},
   onLockedUndo = () => {},
+  onGoDeeper,
 }) {
   const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
@@ -267,6 +268,7 @@ export default function Feed({
                     swipeDir={isTop ? dragDir : null}
                     commentCount={commentCountFor(card.id)}
                     onOpenComments={() => onOpenComments(card)}
+                    onGoDeeper={() => onGoDeeper?.(card)}
                   />
                 </div>
               </TinderCard>
@@ -304,7 +306,7 @@ export default function Feed({
                 className="act-deeper"
                 onClick={() => {
                   haptic.open()
-                  onOpenComments(deck[0])
+                  onGoDeeper?.(deck[0])
                 }}
               >
                 Go deeper

@@ -118,6 +118,7 @@ export const EV = {
   // core loop
   CARD_VIEWED: 'card_viewed',
   CARD_SWIPED: 'card_swiped', // { action: 'interested' | 'pass' }
+  CARD_DETAIL_OPENED: 'card_detail_opened', // "go deeper" — trust-mechanism engagement
   QUIZ_REVEALED: 'quiz_revealed', // guess-first answer opened — the retention mechanic
   CARD_SAVED: 'card_saved',
   CARD_UNSAVED: 'card_unsaved',

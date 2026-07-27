@@ -18,6 +18,7 @@ import {
   mergeState,
 } from './lib/userData.js'
 import AuthWall from './components/AuthWall.jsx'
+import CardDetail from './components/CardDetail.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
@@ -38,6 +39,7 @@ export default function App() {
   const [state, setState] = useState(loadState)
   const [tab, setTab] = useState('feed') // feed | discover | kept | profile
   const [commentsCard, setCommentsCard] = useState(null)
+  const [detailCard, setDetailCard] = useState(null)
   const [toast, setToast] = useState(null)
   const [editingInterests, setEditingInterests] = useState(false)
   const [theme, setThemeState] = useState(storedTheme)
@@ -545,6 +547,7 @@ export default function App() {
             scores={state.topicScores}
             swipeCount={state.swipes.length}
             onOpenComments={setCommentsCard}
+            onGoDeeper={setDetailCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
@@ -651,6 +654,15 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {detailCard && (
+        <CardDetail
+          card={detailCard}
+          isSaved={isSaved(detailCard.id)}
+          onKeep={() => toggleSave(detailCard, 'detail')}
+          onClose={() => setDetailCard(null)}
+        />
+      )}
 
       {wallOpen && (
         <AuthWall
