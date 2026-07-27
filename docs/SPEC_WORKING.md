@@ -134,11 +134,35 @@ fact-check risk this build explicitly isn't taking on yet.
 
 We will never optimize for session length, swipe count, or time-on-app as a
 growth lever — even if it would improve vanity engagement numbers.
-Concretely, we will not build: streak mechanics or "don't break your streak"
-guilt notifications, infinite-scroll with no natural stopping point,
-variable-reward randomization beyond the swipe itself (e.g., randomized rare
-"special" cards to induce compulsive checking), or push notifications
-designed to create anxiety/FOMO rather than deliver a genuine fact.
+Concretely, we will not build: infinite-scroll with no natural stopping
+point, variable-reward randomization beyond the swipe itself (e.g.,
+randomized rare "special" cards to induce compulsive checking), or push
+notifications designed to create anxiety/FOMO rather than deliver a genuine
+fact.
+
+**Amended 2026-07 — a streak now exists, and this is the honest account.**
+The original text ruled out "streak mechanics" outright. The redesign added
+one, so the blanket ban is no longer true and pretending otherwise would be
+worse than the streak itself. What NG3 now forbids is the part that actually
+does harm — **loss aversion** — not the counter:
+
+| Built | Refused |
+|---|---|
+| A daily set the user sizes (3/5/10) | Any goal the product sets for them |
+| A count of days completed | Any "don't lose your streak" prompt |
+| One grace day, so a single miss costs nothing | Streak-protection notifications |
+| Streak derived from activity | A stored counter that could be gamed |
+| The set ENDS when finished | Any reward for exceeding it |
+
+The distinction we are defending: a streak that **records** a habit is a
+mirror; a streak that **threatens** one is a lever. Curio built the mirror.
+The test suite enforces the difference — `tests/streak.test.mjs` asserts that
+exceeding the daily goal earns nothing and that one missed day is forgiven.
+
+**The guardrail that would falsify this:** `session_ended.duration_s`. If
+streaks produce *longer* sessions rather than *more regular short* ones, the
+mechanic is doing the harm NG3 exists to prevent, and it should be removed —
+that is a live commitment, not a hedge.
 
 **Prevents:** the assumption that "more engagement" is automatically good.
 Curio's own North Star (cards kept & retained per weekly active user) and
@@ -506,12 +530,20 @@ Scope truth: per-browser/per-device, same as all persistence today; once
 R9 ships, `stateVersion` moves into the user's server record and gains
 cross-device reach. **Build status:** entirely new.
 
-### R9 — Sign-in gate after 7 free swipes
+### R9 — Sign-in gate after 3 free swipes
 
-**Trigger:** an anonymous user commits their **8th swipe-action** (plain
+**Revised 2026-07 (was 7).** The redesign introduced a daily set with a
+default of **5 cards**, which made a gate at 7 unreachable on day one: a
+user finishes their set and never meets the wall, so the account they need
+in order to keep their history is never offered. **The gate has to sit
+inside the first set or it does not exist.** Three is also where the claim
+becomes honest — by the third card the feed has visibly begun tuning, so
+"keep what you've built" points at something the user can actually see.
+
+**Trigger:** an anonymous user commits their **4th swipe-action** (plain
 swipes and saves both count — a save is a swipe per R4).
 
-**The system must:** let the first **7 swipe-actions** happen with zero
+**The system must:** let the first **3 swipe-actions** happen with zero
 friction — anonymous, localStorage-backed. On the 8th attempt, block the
 action and show the **auth wall**: sign up / sign in (Supabase Auth; email
 OTP or Google — no passwords to manage), with the card in hand still
@@ -526,10 +558,10 @@ the card in hand, the Kept pile, and Discover browsing stay open. We gate
 participation, not access to what they've already earned; per NG3, the
 wall states plainly what it is (no manufactured urgency). Once
 authenticated the gate never reappears. G1 is preserved (first card and
-first 7 swipes need no account); G4's cross-device caveat is **resolved**
+first 3 swipes need no account); G4's cross-device caveat is **resolved**
 for signed-in users.
 
-**Output:** `signup_gate_shown {swipe_count: 7}`, `signup_completed` /
+**Output:** `signup_gate_shown {swipe_count: 3}`, `signup_completed` /
 `signin_completed`, `signup_abandoned` (wall dismissed → read-only).
 PostHog `identify()` links the anonymous `distinct_id` to the account —
 pre- and post-signup behavior joins into one funnel.

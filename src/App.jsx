@@ -57,7 +57,17 @@ export default function App() {
   const [cardsReady, setCardsReady] = useState(false)
 
   // ── R9: identity + the swipe gate ───────────────────────────
-  const FREE_SWIPE_ACTIONS = 7
+  //
+  // Three, not the spec's original seven. The redesign introduced a daily set
+  // (default 5 cards), and a gate at 7 could never fire on day one — a user
+  // finishes their set and never meets it, so the account they need to keep
+  // their history is never offered. The gate has to sit INSIDE the first set
+  // or it does not exist.
+  //
+  // Three is also where the pitch is honest: by the third card the feed has
+  // visibly started tuning, so "keep what you've built" refers to something
+  // the user can actually see.
+  const FREE_SWIPE_ACTIONS = 3
   const [authUser, setAuthUser] = useState(null)
   const [wallOpen, setWallOpen] = useState(false)
   const signedIn = isPermanent(authUser)
