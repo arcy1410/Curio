@@ -7,7 +7,13 @@ import Profile from './components/Profile.jsx'
 import Comments from './components/Comments.jsx'
 import { loadCards, SEED_CARDS } from './lib/cardStore.js'
 import { fetchCommentCounts } from './lib/comments.js'
-import { onAuthChange, isPermanent, signOut, ensureDisplayName } from './lib/session.js'
+import {
+  onAuthChange,
+  isPermanent,
+  signOut,
+  ensureDisplayName,
+  consumeAuthError,
+} from './lib/session.js'
 import {
   syncSwipe,
   syncSave,
@@ -125,6 +131,18 @@ export default function App() {
     })
   }, [])
 
+  // If we just came back from a failed Google round trip, say so. Without
+  // this the failure is a silent reload and the user has no idea why they are
+  // still signed out.
+  useEffect(() => {
+    const authError = consumeAuthError()
+    if (authError) {
+      setToast(`Sign-in failed: ${authError}`)
+      track(EV.SIGNUP_FAILED, { reason: 'callback_error', detail: authError.slice(0, 80) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     // Fires on load with any restored session — including the one Supabase
     // rebuilds from the OAuth redirect — and again on sign-in/sign-out.
@@ -219,7 +237,9 @@ export default function App() {
 
   useEffect(() => {
     if (!toast) return
-    const t = setTimeout(() => setToast(null), 1400)
+    // Errors need long enough to actually read; confirmations don't.
+    const isError = /failed|couldn|error/i.test(toast)
+    const t = setTimeout(() => setToast(null), isError ? 8000 : 1400)
     return () => clearTimeout(t)
   }, [toast])
 

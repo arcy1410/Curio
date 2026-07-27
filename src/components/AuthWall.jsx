@@ -13,7 +13,7 @@
 // Dismissing is a real choice with a real consequence (swipes stay blocked),
 // so it's a button, not a hidden ✕.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { signInWithGoogle } from '../lib/session.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
@@ -22,19 +22,39 @@ export default function AuthWall({ swipeCount, keptCount, onDismiss }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
+  // Coming back from a cancelled Google flow re-mounts this with busy stuck
+  // from the previous attempt in some browsers; start clean every time.
+  useEffect(() => {
+    setBusy(false)
+  }, [])
+
   async function go() {
     haptic.tap()
     setBusy(true)
     setErr('')
+
+    // Watchdog. `busy` disables the button, and the success path never cleared
+    // it because the browser was assumed to have navigated away. When the
+    // navigation didn't happen — which is what mobile was doing — the button
+    // stayed disabled reading "Opening Google…" forever, so every further tap
+    // did nothing. A stuck control is worse than a failed one: it gives the
+    // user no way to retry and no reason why.
+    const watchdog = setTimeout(() => {
+      setBusy(false)
+      setErr("Google didn't open. Tap again, or open Curio in Safari or Chrome rather than inside another app.")
+      track(EV.SIGNUP_FAILED, { reason: 'navigation_blocked' })
+    }, 4000)
+
     const { error } = await signInWithGoogle()
     if (error) {
+      clearTimeout(watchdog)
       // Fail closed on the gate, open on reading (R9 exceptions).
       setErr(error)
       setBusy(false)
       haptic.error()
-      track(EV.SIGNUP_FAILED, { reason: 'provider_unreachable' })
+      track(EV.SIGNUP_FAILED, { reason: 'provider_error' })
     }
-    // On success the browser navigates to Google; nothing after this runs.
+    // On success the browser navigates away and the watchdog never fires.
   }
 
   function dismiss() {

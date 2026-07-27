@@ -68,6 +68,35 @@ export async function existingUser() {
   }
 }
 
+/**
+ * Read an OAuth failure out of the URL, if the callback returned one.
+ *
+ * Supabase reports callback failures in the hash (#error=…&error_description=…)
+ * and, for some cases, the query string. Nothing was reading either, so a real
+ * rejection — an expired link, a blocked identity, storage the browser refused
+ * to write — arrived as a silent page reload that looked identical to "nothing
+ * happened". That is why this took several rounds to pin down.
+ *
+ * Called once on load; clears the hash so the message doesn't survive a manual
+ * refresh.
+ */
+export function consumeAuthError() {
+  try {
+    const fromHash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const fromQuery = new URLSearchParams(window.location.search)
+    const err = fromHash.get('error') || fromQuery.get('error')
+    if (!err) return null
+
+    const desc =
+      fromHash.get('error_description') || fromQuery.get('error_description') || err
+    // Strip the params so a refresh doesn't replay the error.
+    window.history.replaceState({}, '', window.location.pathname)
+    return decodeURIComponent(desc.replace(/\+/g, ' '))
+  } catch {
+    return null
+  }
+}
+
 /** A user who has actually signed in, as opposed to an anonymous shell. */
 export function isPermanent(user) {
   return Boolean(user && user.is_anonymous === false)
