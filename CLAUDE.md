@@ -149,6 +149,15 @@ comments:     { id, card_id, user_id, parent_comment_id (nullable, one level), t
 The prototype mirrors this shape in `src/data/` and `src/lib/storage.js` so the
 Supabase swap is mechanical.
 
+**India-first is the LEAN, not a hard filter (decision, 2026-07-22).** The
+wedge is still India-first — the Guardian headline filter keeps most trending
+cards Indian — but global cards *within the four topics* are welcome for
+variety (e.g. an England women's cricket card under Cricket). The guardrail
+that still holds is TOPIC-relevance, not India-relevance: a Cricket card must
+be about cricket, but need not be about Indian cricket. Off-*topic* drift (a
+markets headline resolving to a US-politics article) is still a bug; off-
+*geography* is not. So don't "fix" non-India cards back out.
+
 ## Content pipeline (Phase 2 — the core trust mechanism, DO NOT SKIP the verify step)
 
 1. Given a topic, pull source material from a **full-text** source (Wikipedia is
