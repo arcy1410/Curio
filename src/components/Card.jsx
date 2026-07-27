@@ -64,44 +64,29 @@ export default function Card({
           the card at phone width and wrapped outside its rounded corner.
           Comments move into the detail sheet, which has room and is where
           someone reading closely already is. */}
-      {/* Goes to the SOURCE, not the sheet. It used to open the detail sheet,
-          which is exactly what "Go deeper" does — two controls, one
-          destination. Pointing it at the source makes the pair meaningful:
-          Go deeper = Curio's own explanation, Why it's true = the evidence
-          itself, in one tap. That second one is the trust promise, so it
-          should be the shortest path in the product. */}
-      {/* Opens on POINTERDOWN, not click.
-          react-tinder-card listens for pointer events natively on the card,
-          and native events reach it before React's synthetic system (which
-          listens at the root) — so a React stopPropagation here fires too
-          late and the drag handler swallows the tap. Acting on pointerdown
-          gets in first, and window.open inside a pointer gesture is a real
-          user activation so it isn't popup-blocked. The href stays for
-          middle-click, long-press and screen readers. */}
-      <a
+      {/* Opens the detail sheet, not the source.
+          It pointed at the source URL for a while, which meant leaving the app
+          — on a phone that drops you into a new tab and loses your place mid-
+          set. The sheet keeps you here and still carries the source, one tap
+          further on, so the evidence is reachable without the round trip.
+
+          POINTERDOWN, not click: react-tinder-card listens for pointer events
+          natively on the card and gets them before React's synthetic system,
+          so a click handler here is swallowed by the drag. */}
+      <button
         className="why-true"
-        href={card.source_url}
-        target="_blank"
-        rel="noreferrer"
         onPointerDown={(e) => {
           e.stopPropagation()
           e.preventDefault()
-          track(EV.SOURCE_LINK_CLICKED, {
-            card_id: card.id,
-            topic: card.topic,
-            host: hostOf(card.source_url),
-            surface: 'why_its_true',
-          })
-          window.open(card.source_url, '_blank', 'noopener,noreferrer')
+          onGoDeeper?.()
         }}
         onClick={(e) => {
-          // Pointerdown already handled it; stop the anchor firing twice.
-          e.preventDefault()
           e.stopPropagation()
+          e.preventDefault()
         }}
       >
-        Why it&apos;s true ↗
-      </a>
+        Why it&apos;s true →
+      </button>
     </div>
   )
 
