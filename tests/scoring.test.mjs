@@ -1,7 +1,13 @@
 // R7 — a newly added topic must reach parity with the user's strongest
 // interest, not receive a token bonus that weeks of tuning drown out.
 
-import { initialScores, applySwipe, addInterestBonus, pickNextCard } from '../src/lib/scoring.js'
+import {
+  initialScores,
+  applySwipe,
+  applyTopSignal,
+  addInterestBonus,
+  pickNextCard,
+} from '../src/lib/scoring.js'
 
 let pass = 0
 let fail = 0
@@ -78,6 +84,46 @@ const maxBefore = Math.max(...Object.values(tuned))
   const after = share(addInterestBonus(tuned, ['history']))
   check('a token bonus would leave history rare', before < 0.15, `${before}`)
   check('parity gives the new topic a real share', after > 0.4, `${after}`)
+}
+
+// ── The engagement ladder ──
+{
+  const base = initialScores([])
+  const at = (sc) => sc.cricket ?? 0
+
+  check('reveal is the smallest signal (+1)', at(applySwipe(base, 'cricket', 'reveal')) === 1,
+    `${at(applySwipe(base, 'cricket', 'reveal'))}`)
+  check('interested is +3', at(applySwipe(base, 'cricket', 'interested')) === 3)
+  check('a deep read scores like a keep (+5)',
+    at(applySwipe(base, 'cricket', 'deep_read')) === at(applySwipe(base, 'cricket', 'save')),
+    `${at(applySwipe(base, 'cricket', 'deep_read'))} vs ${at(applySwipe(base, 'cricket', 'save'))}`)
+  check('pass is -1', at(applySwipe(base, 'cricket', 'pass')) === -1)
+}
+
+// ── One card spends its +5 exactly once, whichever order ──
+{
+  const base = initialScores([])
+
+  // deep read, then keep
+  let r = applyTopSignal(base, 'cricket', 'card-1', [])
+  const afterDeep = r.scores.cricket
+  r = applyTopSignal(r.scores, 'cricket', 'card-1', r.creditedCards)
+  check('deep read then keep does not stack', r.scores.cricket === afterDeep,
+    `${afterDeep} → ${r.scores.cricket}`)
+  check('a single card contributes exactly +5', r.scores.cricket === 5, `${r.scores.cricket}`)
+
+  // a DIFFERENT card still earns its own +5
+  const r2 = applyTopSignal(r.scores, 'cricket', 'card-2', r.creditedCards)
+  check('a different card still earns its own +5', r2.scores.cricket === 10, `${r2.scores.cricket}`)
+}
+
+// ── Reveal is not capped by the +5 budget ──
+{
+  const base = initialScores([])
+  const r = applyTopSignal(base, 'cricket', 'card-1', [])
+  const withReveal = applySwipe(r.scores, 'cricket', 'reveal')
+  check('a reveal still counts on a card that already spent its +5',
+    withReveal.cricket === 6, `${withReveal.cricket}`)
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

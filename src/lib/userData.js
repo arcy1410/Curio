@@ -128,7 +128,18 @@ export async function syncScores(scores) {
   }
 }
 
-/** Record a Discover read (R5). Reads never score — they only retire a card. */
+/**
+ * Record a Discover read (R5) — RETIRED, kept deliberately.
+ *
+ * The 30-second Discover dwell rule was replaced by two better signals: a
+ * quiz reveal (+1) and a 15s deep read of the detail sheet (+5). Nothing calls
+ * this now.
+ *
+ * It stays, and card_reads keeps its rows, because dropping the table would
+ * destroy real users' reading history to retire a metric — and if a future
+ * release wants Discover dwell back, the writer and the schema are already
+ * correct. Dead code with a stated reason beats a destructive cleanup.
+ */
 export async function syncRead({ cardId, dwellMs }) {
   if (!isSyncable(cardId)) return
   try {

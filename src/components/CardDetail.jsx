@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { topicName, topicColor } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
@@ -23,9 +23,63 @@ function hostOf(url) {
  * Body paragraphs render separately rather than as one block — a 150-word card
  * read as a wall is the thing the 2-minute promise is supposed to prevent.
  */
-export default function CardDetail({ card, onClose, onKeep, isSaved, onOpenComments, commentCount = 0 }) {
+const DEEP_READ_MS = 15_000
+
+export default function CardDetail({
+  card,
+  onClose,
+  onKeep,
+  isSaved,
+  onOpenComments,
+  commentCount = 0,
+  onDeepRead,
+}) {
   useEffect(() => {
     track(EV.CARD_DETAIL_OPENED, { card_id: card.id, topic: card.topic })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id])
+
+  /**
+   * 15 seconds of ACTIVE reading in this sheet counts as strongly as a Keep.
+   *
+   * Active, not elapsed: the clock stops when the tab is hidden, for the same
+   * reason R5's dwell rule did — a sheet left open while someone takes a call
+   * is not reading, and crediting it would put a +5 into the feed on a card
+   * they never looked at. Time already banked survives the interruption.
+   *
+   * Fires at most once per card; the parent also refuses a second credit for
+   * the same card (scoring.applyTopSignal), so this can't double with a Keep.
+   */
+  const firedRef = useRef(false)
+  useEffect(() => {
+    firedRef.current = false
+    let banked = 0
+    let since = document.visibilityState === 'visible' ? Date.now() : null
+
+    const bank = () => {
+      if (since != null) {
+        banked += Date.now() - since
+        since = null
+      }
+    }
+    const onVis = () => {
+      if (document.visibilityState === 'visible') since = Date.now()
+      else bank()
+    }
+    document.addEventListener('visibilitychange', onVis)
+
+    const timer = setInterval(() => {
+      const total = banked + (since != null ? Date.now() - since : 0)
+      if (total >= DEEP_READ_MS && !firedRef.current) {
+        firedRef.current = true
+        onDeepRead?.(card, Math.round(total))
+      }
+    }, 1000)
+
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVis)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card.id])
 

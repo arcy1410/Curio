@@ -23,7 +23,14 @@ function hostOf(url) {
  * design: it's the treatment the handoff specifies for prose-led cards, and it
  * means the feed never blocks on the quiz pipeline having caught up.
  */
-export default function Card({ card, swipeDir, onOpenComments, commentCount = 0, onGoDeeper }) {
+export default function Card({
+  card,
+  swipeDir,
+  onOpenComments,
+  commentCount = 0,
+  onGoDeeper,
+  onReveal,
+}) {
   const hasQuiz = Boolean(card.quiz_question && card.quiz_answer)
   const [revealed, setRevealed] = useState(false)
 
@@ -40,6 +47,7 @@ export default function Card({ card, swipeDir, onOpenComments, commentCount = 0,
     haptic.tap()
     setRevealed(true)
     track(EV.QUIZ_REVEALED, { card_id: card.id, topic: card.topic })
+    onReveal?.(card) // +1: the guess was attempted
   }
 
   const footer = (

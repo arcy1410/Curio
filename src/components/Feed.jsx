@@ -34,6 +34,7 @@ export default function Feed({
   onGateHit = () => {},
   onLockedUndo = () => {},
   onGoDeeper,
+  onReveal,
 }) {
   const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
@@ -269,6 +270,7 @@ export default function Feed({
                     commentCount={commentCountFor(card.id)}
                     onOpenComments={() => onOpenComments(card)}
                     onGoDeeper={() => onGoDeeper?.(card)}
+                    onReveal={onReveal}
                   />
                 </div>
               </TinderCard>

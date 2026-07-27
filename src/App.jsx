@@ -13,7 +13,6 @@ import {
   syncSave,
   syncScores,
   syncInterests,
-  syncRead,
   hydrate,
   mergeState,
 } from './lib/userData.js'
@@ -21,7 +20,13 @@ import AuthWall from './components/AuthWall.jsx'
 import CardDetail from './components/CardDetail.jsx'
 import { DEMO_COMMENTS } from './data/demoComments.js'
 import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.js'
-import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
+import {
+  initialScores,
+  applySwipe,
+  applyTopSignal,
+  pickNextCard,
+  addInterestBonus,
+} from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 import { storedTheme, setTheme } from './lib/theme.js'
 import { markReviewed } from './lib/review.js'
@@ -99,6 +104,8 @@ export default function App() {
         // deck keeps dealing cards this account already swiped.
         scoresRef.current = merged.topicScores
         seenRef.current = new Set(merged.seen)
+        revealedRef.current = new Set(merged.revealed ?? [])
+        creditedRef.current = new Set(merged.creditedCards ?? [])
         return merged
       })
     })
@@ -176,6 +183,10 @@ export default function App() {
   // against the freshest scores/seen even through async swipe callbacks.
   const scoresRef = useRef(state.topicScores)
   const seenRef = useRef(new Set(state.seen))
+  // Score budgets live in refs so they can be checked and spent synchronously,
+  // before any re-render or repeated updater invocation can double-count.
+  const revealedRef = useRef(new Set(state.revealed ?? []))
+  const creditedRef = useRef(new Set(state.creditedCards ?? []))
 
   useEffect(() => {
     saveState(state)
@@ -361,17 +372,53 @@ export default function App() {
     setToast(message)
   }, [])
 
-  // ── R5: a Discover read retires the card from the feed ──────
+  // ── Quiz reveal: the smallest real signal (+1) ──────────────
   //
-  // Reading NEVER scores — only Save does (+3). This marks the card seen and
-  // nothing else, which is the point: it stops a card the user has already
-  // read from being served to them again as if it were new.
-  const recordRead = useCallback((cardId, dwellMs) => {
-    if (seenRef.current.has(cardId)) return
-    seenRef.current = new Set(seenRef.current).add(cardId)
-    setState((s) => (s.seen.includes(cardId) ? s : { ...s, seen: [...s.seen, cardId] }))
-    track(EV.DISCOVERY_CARD_READ, { card_id: cardId, dwell_ms: dwellMs })
-    syncRead({ cardId, dwellMs })
+  // Tapping Reveal means the guess was attempted, which is a genuine — if
+  // slight — statement of interest, and it is the mechanic the whole card
+  // treatment exists for. Once per card: re-revealing after a re-render must
+  // not farm score.
+  const recordReveal = useCallback((card) => {
+    // Guarded OUTSIDE the updater. React may invoke a state updater more than
+    // once (StrictMode does so deliberately), and this one is not pure — it
+    // advances scoresRef and fires a network write. Deciding inside it scored
+    // the same card twice. Refs are checked and advanced synchronously here;
+    // the updater below only merges.
+    if (revealedRef.current.has(card.id)) return
+    revealedRef.current.add(card.id)
+
+    const nextScores = applySwipe(scoresRef.current, card.topic, 'reveal')
+    scoresRef.current = nextScores
+    syncScores(nextScores)
+    setState((s) => ({
+      ...s,
+      revealed: [...new Set([...(s.revealed ?? []), card.id])],
+      topicScores: nextScores,
+    }))
+  }, [])
+
+  // ── Deep read: 15s in the detail sheet scores like a Keep ───
+  //
+  // Routed through applyTopSignal so a card can only ever spend its +5 once —
+  // reading deeply AND keeping the same card is one opinion about one topic,
+  // not two, and letting it reach +10 would let a single card outweigh two
+  // genuine saves.
+  const recordDeepRead = useCallback((card, ms) => {
+    // Same rule as recordReveal: the +5 budget is spent against a ref, not
+    // against state read inside an updater. This is what stopped a deep read
+    // and a Keep on one card from summing to +10.
+    if (creditedRef.current.has(card.id)) return
+    creditedRef.current.add(card.id)
+
+    const nextScores = applySwipe(scoresRef.current, card.topic, 'deep_read')
+    scoresRef.current = nextScores
+    syncScores(nextScores)
+    track(EV.CARD_DEEP_READ, { card_id: card.id, topic: card.topic, dwell_ms: ms })
+    setState((s) => ({
+      ...s,
+      topicScores: nextScores,
+      creditedCards: [...new Set([...(s.creditedCards ?? []), card.id])],
+    }))
   }, [])
 
   // ── Save / unsave a card to the Kept pile (explicit, deliberate) ──
@@ -406,10 +453,30 @@ export default function App() {
       return 'blocked'
     }
 
-    // Score the save: feed saves are the strongest signal (+5); saves from
-    // other surfaces apply the plain interested delta (+3).
-    const action = source === 'feed' ? 'save' : 'interested'
-    const nextScores = applySwipe(scoresRef.current, card.topic, action)
+    // Score the save. A feed save is the strongest signal (+5) but shares one
+    // budget with a deep read of the same card — applyTopSignal refuses a
+    // second +5 for a card that already spent it. Saves from other surfaces
+    // apply the plain interested delta (+3) and are not capped.
+    // A deliberate Keep — from the feed or from the detail sheet — spends the
+    // card's single +5, the same budget a 15s deep read spends. So reading
+    // deeply AND keeping the same card totals +5, not +10 and not +8: one card
+    // is one opinion about one topic.
+    //
+    // 'detail' belongs in this branch, not with Discover's +3. It is the same
+    // deliberate keep, just pressed from the sheet — routing it elsewhere let
+    // a deep read plus a sheet Keep reach +8 and quietly bypass the cap.
+    let nextScores
+    if (source === 'feed' || source === 'detail') {
+      if (creditedRef.current.has(card.id)) {
+        nextScores = scoresRef.current // already spent by a deep read
+      } else {
+        creditedRef.current.add(card.id)
+        nextScores = applySwipe(scoresRef.current, card.topic, 'save')
+      }
+    } else {
+      nextScores = applySwipe(scoresRef.current, card.topic, 'interested')
+    }
+    const nextCredited = [...creditedRef.current]
     scoresRef.current = nextScores
 
     const newCount = state.kept.length + 1
@@ -422,6 +489,7 @@ export default function App() {
         topicScores: nextScores,
         seen: [...s.seen, card.id],
         swipes: [...s.swipes, { cardId: card.id, action: 'interested', ts: Date.now() }],
+        creditedCards: nextCredited,
         // savedAt starts the decay clock (review.js) — without it every kept
         // card looks equally fresh forever and "retained" is unmeasurable.
         reviewMeta: { ...s.reviewMeta, [card.id]: { savedAt: Date.now(), reviewCount: 0 } },
@@ -568,6 +636,7 @@ export default function App() {
             swipeCount={state.swipes.length}
             onOpenComments={setCommentsCard}
             onGoDeeper={setDetailCard}
+            onReveal={recordReveal}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'feed')}
             isSaved={isSaved}
@@ -582,7 +651,6 @@ export default function App() {
         {tab === 'discover' && (
           <Discovery
             cards={cards}
-            onCardRead={recordRead}
             alreadySeen={state.seen}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
@@ -681,6 +749,7 @@ export default function App() {
           isSaved={isSaved(detailCard.id)}
           commentCount={commentCountFor(detailCard.id)}
           onOpenComments={() => setCommentsCard(detailCard)}
+          onDeepRead={recordDeepRead}
           onKeep={() => toggleSave(detailCard, 'detail')}
           onClose={() => setDetailCard(null)}
         />

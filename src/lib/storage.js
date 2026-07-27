@@ -23,6 +23,8 @@ const DEFAULT_STATE = {
   dailyGoal: 1, // index into GOALS — 0:3 cards, 1:5 (default), 2:10
   progress: {}, // { 'YYYY-MM-DD': cardsFinished } — the streak is derived, never stored
   reviewMeta: {}, // { cardId: { savedAt, reviewCount, lastReviewedAt } } — decay state
+  revealed: [], // cardIds whose quiz answer was revealed (+1, once each)
+  creditedCards: [], // cardIds that already spent their single +5 (deep read OR keep)
 }
 
 export function loadState() {

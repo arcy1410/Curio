@@ -11,6 +11,8 @@ import { TOPICS } from '../data/topics.js'
 const KEEP_DELTA = 3
 const PASS_DELTA = -1
 const SAVE_DELTA = 5 // saving is the costlier, more deliberate signal
+const REVEAL_DELTA = 1 // tapping Reveal = the guess was attempted
+const DEEP_READ_DELTA = 5 // 15s+ in the detail sheet reads as strongly as a Keep
 const ONBOARD_BONUS = 4 // interests chosen at onboarding start ahead
 const FLOOR = 0.15 // every topic keeps a small chance so the feed never collapses
 
@@ -22,14 +24,46 @@ export function initialScores(interests = []) {
 }
 
 // An action nudges the topic's score along the ladder:
-// 'pass' −1 · 'interested' +3 · 'save' +5 (feed save — supersedes the +3,
-// never stacks with it). Discover saves pass 'interested' for their +3.
+//   'pass'       −1
+//   'reveal'     +1  attempted the guess — the smallest real signal of interest
+//   'interested' +3
+//   'deep_read'  +5  15s+ in the detail sheet: reading the evidence is as
+//                    strong a signal as saving, and unlike a save it costs the
+//                    user nothing, so it can't be inflated by cap anxiety
+//   'save'       +5  feed save — supersedes the +3, never stacks with it
+// Discover saves pass 'interested' for their +3.
 export function applySwipe(scores, topicId, action) {
   const next = { ...scores }
-  const delta = action === 'pass' ? PASS_DELTA : action === 'save' ? SAVE_DELTA : KEEP_DELTA
+  const delta =
+    action === 'pass'
+      ? PASS_DELTA
+      : action === 'reveal'
+        ? REVEAL_DELTA
+        : action === 'save' || action === 'deep_read'
+          ? SAVE_DELTA
+          : KEEP_DELTA
   next[topicId] = (next[topicId] ?? 0) + delta
   return next
 }
+
+/**
+ * The strongest signal a single card may contribute, ever.
+ *
+ * Deep-read and Save both sit at +5, and a user can do both on one card. They
+ * must not sum: one card is one opinion about one topic, and letting a
+ * combination reach +10 would make a single card outweigh two genuine saves —
+ * the feed would over-fit to whichever topic someone happened to read closely
+ * once. `creditedCards` tracks which cards have already spent their +5.
+ */
+export function applyTopSignal(scores, topicId, cardId, creditedCards = []) {
+  if (creditedCards.includes(cardId)) return { scores, creditedCards }
+  return {
+    scores: applySwipe(scores, topicId, 'save'),
+    creditedCards: [...creditedCards, cardId],
+  }
+}
+
+export { REVEAL_DELTA, DEEP_READ_DELTA, SAVE_DELTA, KEEP_DELTA, PASS_DELTA }
 
 /**
  * R7 — a newly added topic jumps straight to PARITY with the user's current

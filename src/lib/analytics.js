@@ -118,6 +118,7 @@ export const EV = {
   // core loop
   CARD_VIEWED: 'card_viewed',
   CARD_SWIPED: 'card_swiped', // { action: 'interested' | 'pass' }
+  CARD_DEEP_READ: 'card_deep_read', // {dwell_ms} — 15s active in the detail sheet
   CARD_DETAIL_OPENED: 'card_detail_opened', // "go deeper" — trust-mechanism engagement
   QUIZ_REVEALED: 'quiz_revealed', // guess-first answer opened — the retention mechanic
   CARD_SAVED: 'card_saved',
@@ -146,7 +147,6 @@ export const EV = {
   DISCOVERY_OPENED: 'discovery_opened',
   DISCOVERY_TOPIC_SELECTED: 'discovery_topic_selected',
   DISCOVERY_SUBTOPIC_FILTERED: 'discovery_subtopic_filtered',
-  DISCOVERY_CARD_READ: 'discovery_card_read', // {card_id, dwell_ms} — 30s dwell met (R5)
 
   // comments (quality / guardrail)
   COMMENTS_OPENED: 'comments_opened',
