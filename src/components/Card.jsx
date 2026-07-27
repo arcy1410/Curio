@@ -25,7 +25,6 @@ function hostOf(url) {
  */
 export default function Card({
   card,
-  swipeDir,
   onOpenComments,
   commentCount = 0,
   onGoDeeper,
@@ -127,12 +126,7 @@ export default function Card({
               card instead of the text. Stopping pointerdown here keeps the
               drag from starting, and touch-action:pan-y (CSS) tells the
               browser this area scrolls vertically. */}
-          <div
-            className={`answer-panel ${revealed ? 'open' : ''}`}
-            onPointerDown={(e) => {
-              if (revealed) e.stopPropagation()
-            }}
-          >
+          <div className={`answer-panel ${revealed ? 'open' : ''}`}>
             {revealed ? (
               <div className="answer-inner">
                 {card.stat && (
@@ -176,20 +170,22 @@ export default function Card({
       ) : (
         <>
           <h2 className={card.title.length > 52 ? 'long' : ''}>{card.title}</h2>
-          <p className="dek" onPointerDown={(e) => e.stopPropagation()}>
-            {card.body}
-          </p>
+          {/* No stopPropagation here. touch-action:pan-y already gives the
+              browser vertical scrolling while leaving horizontal gestures to
+              the swipe handler — swallowing pointerdown as well killed the
+              drag for anyone who started it on the text, which is most of the
+              card. */}
+          <p className="dek">{card.body}</p>
         </>
       )}
 
       {footer}
 
-      <div className="stamp keep" style={{ opacity: swipeDir === 'interested' ? 1 : 0 }}>
-        Keep
-      </div>
-      <div className="stamp pass" style={{ opacity: swipeDir === 'pass' ? 1 : 0 }}>
-        Later
-      </div>
+      {/* Shown via the wrapper's data-stamp attribute (see Feed.markStamp) so
+          a drag never triggers a React re-render — re-rendering mid-gesture
+          was breaking the swipe itself. */}
+      <div className="stamp keep">Keep</div>
+      <div className="stamp pass">Later</div>
     </article>
   )
 }

@@ -780,6 +780,7 @@ button {
 
 /* ── Swipe overlays ─────────────────────────────────────────── */
 .stamp {
+  opacity: 0;
   position: absolute;
   top: 22px;
   font-family: var(--mono);
@@ -790,6 +791,10 @@ button {
   border-radius: 999px;
   transition: opacity 0.1s;
   pointer-events: none;
+}
+[data-stamp='interested'] .stamp.keep,
+[data-stamp='pass'] .stamp.pass {
+  opacity: 1;
 }
 .stamp.keep {
   right: 20px;
@@ -1968,6 +1973,12 @@ button {
 .deck .swipe {
   position: absolute;
   inset: 0;
+  /* react-tinder-card drives the drag from pointer events, and without this
+     the browser claims a horizontal drag as its own pan gesture and fires
+     pointercancel — the card follows the finger, snaps back, and the swipe
+     never commits. That is the "swipe comes back, have to swipe twice" bug.
+     Scrollable children re-enable vertical panning for themselves. */
+  touch-action: none;
 }
 
 /* ── Action row: Later · Go deeper · Keep ────────────────────── */

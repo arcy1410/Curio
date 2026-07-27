@@ -38,7 +38,6 @@ export default function Feed({
 }) {
   const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
-  const [dragDir, setDragDir] = useState(null) // 'interested' | 'pass' | null (top card only)
   const [ready, setReady] = useState(false)
   const [burst, setBurst] = useState(null) // { key, parts } emoji burst on save
   const childRefs = useRef({})
@@ -92,12 +91,25 @@ export default function Feed({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardsReady])
 
+  /**
+   * Light or clear a card's swipe stamp by touching the DOM directly.
+   *
+   * Deliberately not React state: any re-render during a drag breaks
+   * react-tinder-card's gesture, and the stamp is pure decoration that the
+   * rest of the app never reads.
+   */
+  function markStamp(cardId, action) {
+    const el = document.querySelector(`[data-card="${cardId}"]`)
+    if (!el) return
+    el.dataset.stamp = action ?? ''
+  }
+
   function handleSwipe(card, dir) {
     const action = dirToAction(dir)
     if (!action) return
     if (swiped.current.has(card.id)) return
     swiped.current.add(card.id)
-    setDragDir(null)
+    markStamp(card.id, null)
     if (action === 'interested') haptic.keep()
     else haptic.pass()
     onSwipe(card, action, methodRef.current)
@@ -173,6 +185,7 @@ export default function Feed({
       // Same rule as trigger(): App already recorded the save, so mark it
       // swiped, advance, and fling purely for looks.
       swiped.current.add(top.id)
+      markStamp(top.id, null)
       advance(top)
       childRefs.current[top.id]?.current?.swipe('right')?.catch?.(() => {})
     } else if (result === 'blocked') {
@@ -270,16 +283,24 @@ export default function Feed({
                 swipeThreshold={90}
                 onSwipe={(dir) => handleSwipe(card, dir)}
                 onCardLeftScreen={() => handleLeftScreen(card)}
+                // The stamp is toggled on the DOM node, NOT through state.
+                //
+                // setDragDir here re-rendered the component in the middle of a
+                // live drag, which tore down react-tinder-card's in-flight
+                // gesture: the stamp lit up at the threshold and then release
+                // never committed, so the card sprang back still asking to be
+                // kept and the swipe had to be repeated. Buttons were immune
+                // because they never re-render mid-gesture — which is exactly
+                // why Like worked and swiping didn't.
                 onSwipeRequirementFulfilled={(dir) => {
                   if (!isTop) return
-                  // A gesture that WOULD have swiped is the clearest moment to
-                  // explain the wall — the intent is unambiguous.
                   if (gated) return onGateHit()
-                  setDragDir(dirToAction(dir))
+                  markStamp(card.id, dirToAction(dir))
                 }}
-                onSwipeRequirementUnfulfilled={() => isTop && setDragDir(null)}
+                onSwipeRequirementUnfulfilled={() => isTop && markStamp(card.id, null)}
               >
                 <div
+                  data-card={card.id}
                   style={{
                     height: '100%',
                     transform: `scale(${1 - depth * 0.03}) translateY(${depth * 10}px)`,
@@ -288,7 +309,6 @@ export default function Feed({
                 >
                   <Card
                     card={card}
-                    swipeDir={isTop ? dragDir : null}
                     commentCount={commentCountFor(card.id)}
                     onOpenComments={() => onOpenComments(card)}
                     onGoDeeper={() => onGoDeeper?.(card)}
