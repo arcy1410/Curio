@@ -70,20 +70,34 @@ export default function Card({
           Go deeper = Curio's own explanation, Why it's true = the evidence
           itself, in one tap. That second one is the trust promise, so it
           should be the shortest path in the product. */}
+      {/* Opens on POINTERDOWN, not click.
+          react-tinder-card listens for pointer events natively on the card,
+          and native events reach it before React's synthetic system (which
+          listens at the root) — so a React stopPropagation here fires too
+          late and the drag handler swallows the tap. Acting on pointerdown
+          gets in first, and window.open inside a pointer gesture is a real
+          user activation so it isn't popup-blocked. The href stays for
+          middle-click, long-press and screen readers. */}
       <a
         className="why-true"
         href={card.source_url}
         target="_blank"
         rel="noreferrer"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={(e) => {
+        onPointerDown={(e) => {
           e.stopPropagation()
+          e.preventDefault()
           track(EV.SOURCE_LINK_CLICKED, {
             card_id: card.id,
             topic: card.topic,
             host: hostOf(card.source_url),
             surface: 'why_its_true',
           })
+          window.open(card.source_url, '_blank', 'noopener,noreferrer')
+        }}
+        onClick={(e) => {
+          // Pointerdown already handled it; stop the anchor firing twice.
+          e.preventDefault()
+          e.stopPropagation()
         }}
       >
         Why it&apos;s true ↗
