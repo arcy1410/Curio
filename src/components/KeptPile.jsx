@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { topicName, topicEmoji, topicColor } from '../data/topics.js'
+import { useEffect, useMemo, useState } from 'react'
+import { topicName, topicColor } from '../data/topics.js'
+import { strengthOf, dueLabel, dueCards, STRENGTH } from '../lib/review.js'
 import { track, EV } from '../lib/analytics.js'
 import { haptic } from '../lib/haptics.js'
 
@@ -15,8 +16,36 @@ function hostOf(url) {
 // Tapping a card expands it to the full text in place (spec G4: "retained"
 // means re-reading, not just checking the list — kept_card_opened is the
 // re-engagement signal the North Star depends on).
-export default function KeptPile({ keptCards, onOpenComments, commentCountFor, onToggleSave }) {
+export default function KeptPile({
+  keptCards,
+  onOpenComments,
+  commentCountFor,
+  onToggleSave,
+  reviewMeta = {},
+  onReview,
+}) {
   const [expandedId, setExpandedId] = useState(null)
+  const [filter, setFilter] = useState('all')
+
+  // Attach review state. A card the user saved but never revisited is not
+  // "retained" — decay is what makes the second half of the North Star
+  // ("kept AND retained") observable rather than assumed.
+  const withState = useMemo(
+    () =>
+      keptCards.map((c) => {
+        const meta = { savedAt: c.savedAt, ...(reviewMeta[c.id] ?? {}) }
+        return { ...c, meta, strength: strengthOf(meta), due: dueLabel(meta) }
+      }),
+    [keptCards, reviewMeta]
+  )
+
+  const fading = withState.filter((c) => c.strength === STRENGTH.FADING)
+  const shown =
+    filter === 'all'
+      ? withState
+      : filter === 'due'
+        ? fading
+        : withState.filter((c) => c.strength === STRENGTH.SOLID)
 
   useEffect(() => {
     track(EV.KEPT_PILE_VIEWED, { kept_count: keptCards.length })
@@ -36,12 +65,53 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor, o
     <div>
       <div className="kept-head">
         <h1>Kept</h1>
-        <p>
-          {keptCards.length === 0
-            ? 'Cards you keep will collect here.'
-            : `${keptCards.length} card${keptCards.length === 1 ? '' : 's'} saved · tap one to re-read`}
-        </p>
+        <span className="mono">{keptCards.length} cards</span>
       </div>
+
+      {keptCards.length > 0 && (
+        <div className="filter-row">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'due', label: 'Due to review' },
+            { id: 'solid', label: 'Solid' },
+          ].map((f) => (
+            <button
+              key={f.id}
+              className={`filter-chip ${filter === f.id ? 'on' : ''}`}
+              onClick={() => {
+                haptic.tap()
+                setFilter(f.id)
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Surfaces the only state that asks for action. Phrased as an
+          invitation with a real time cost, not an alarm — "4 cards are
+          fading" is a fact; "don't lose your progress!" would be a threat. */}
+      {fading.length > 0 && filter !== 'solid' && (
+        <div className="review-prompt">
+          <div>
+            <div className="rp-title">
+              {fading.length} card{fading.length === 1 ? '' : 's'}{' '}
+              {fading.length === 1 ? 'is' : 'are'} fading
+            </div>
+            <div className="rp-sub">A 90-second review locks them in.</div>
+          </div>
+          <button
+            className="rp-btn"
+            onClick={() => {
+              haptic.tap()
+              onReview?.(dueCards(fading.map((c) => c.meta)).length ? fading : [])
+            }}
+          >
+            Review
+          </button>
+        </div>
+      )}
 
       {keptCards.length === 0 ? (
         <div className="empty" style={{ padding: '48px 20px' }}>
@@ -51,7 +121,7 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor, o
         </div>
       ) : (
         <div className="kept-list">
-          {keptCards.map((card) => {
+          {shown.map((card) => {
             const expanded = expandedId === card.id
             return (
               <div
@@ -60,17 +130,13 @@ export default function KeptPile({ keptCards, onOpenComments, commentCountFor, o
                 style={{ '--topic': topicColor(card.topic) }}
               >
                 <button className="kept-open" onClick={() => toggleExpand(card)}>
-                  <div className="tag">
-                    {topicEmoji(card.topic)} {topicName(card.topic)}
-                    {card.subtopic ? ` · ${card.subtopic}` : ''}
+                  <div className="kept-meta-row">
+                    <span className="mono">{topicName(card.topic)}</span>
+                    <span className={`strength ${card.strength}`}>{card.strength}</span>
                   </div>
                   <h3>{card.title}</h3>
                   <p className="kept-body">{card.body}</p>
-                  {expanded && card.verified && (
-                    <span className="verified" style={{ marginTop: 10, alignSelf: 'flex-start' }}>
-                      ✓ Fact-checked
-                    </span>
-                  )}
+                  {!expanded && <div className="mono due-label">{card.due}</div>}
                 </button>
                 <div className="meta">
                   <a

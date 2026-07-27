@@ -125,6 +125,7 @@ export const EV = {
 
   // daily set + streak (redesign)
   DAILY_SET_COMPLETED: 'daily_set_completed', // {goal_cards, streak_days}
+  REVIEW_COMPLETED: 'review_completed', // {card_count} — the retention signal
   DAILY_GOAL_CHANGED: 'daily_goal_changed', // {from_cards, to_cards}
 
   // pile

@@ -22,6 +22,7 @@ const DEFAULT_STATE = {
   // Redesign: daily set + streak.
   dailyGoal: 1, // index into GOALS — 0:3 cards, 1:5 (default), 2:10
   progress: {}, // { 'YYYY-MM-DD': cardsFinished } — the streak is derived, never stored
+  reviewMeta: {}, // { cardId: { savedAt, reviewCount, lastReviewedAt } } — decay state
 }
 
 export function loadState() {

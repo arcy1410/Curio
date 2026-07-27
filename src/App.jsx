@@ -23,6 +23,7 @@ import { loadState, saveState, resetState, STATE_VERSION } from './lib/storage.j
 import { initialScores, applySwipe, pickNextCard, addInterestBonus } from './lib/scoring.js'
 import { haptic } from './lib/haptics.js'
 import { storedTheme, setTheme } from './lib/theme.js'
+import { markReviewed } from './lib/review.js'
 import {
   GOALS,
   currentStreak,
@@ -399,6 +400,9 @@ export default function App() {
         topicScores: nextScores,
         seen: [...s.seen, card.id],
         swipes: [...s.swipes, { cardId: card.id, action: 'interested', ts: Date.now() }],
+        // savedAt starts the decay clock (review.js) — without it every kept
+        // card looks equally fresh forever and "retained" is unmeasurable.
+        reviewMeta: { ...s.reviewMeta, [card.id]: { savedAt: Date.now(), reviewCount: 0 } },
       }))
       track(EV.CARD_SWIPED, {
         card_id: card.id,
@@ -413,6 +417,7 @@ export default function App() {
         ...s,
         kept: [card.id, ...s.kept],
         topicScores: nextScores,
+        reviewMeta: { ...s.reviewMeta, [card.id]: { savedAt: Date.now(), reviewCount: 0 } },
       }))
     }
 
@@ -565,6 +570,21 @@ export default function App() {
         {tab === 'kept' && (
           <KeptPile
             keptCards={keptCards}
+            reviewMeta={state.reviewMeta}
+            onReview={(cards) => {
+              // A review is a re-read, which is the retention signal itself.
+              haptic.tap()
+              const now = Date.now()
+              setState((s) => ({
+                ...s,
+                reviewMeta: cards.reduce(
+                  (acc, c) => ({ ...acc, [c.id]: markReviewed(s.reviewMeta[c.id] ?? {}, now) }),
+                  { ...s.reviewMeta }
+                ),
+              }))
+              track(EV.REVIEW_COMPLETED, { card_count: cards.length })
+              setToast(`${cards.length} card${cards.length === 1 ? '' : 's'} refreshed`)
+            }}
             onOpenComments={setCommentsCard}
             commentCountFor={commentCountFor}
             onToggleSave={(card) => toggleSave(card, 'kept')}
