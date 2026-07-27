@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { topicName, topicColor } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
@@ -32,6 +32,7 @@ export default function Card({
 }) {
   const hasQuiz = Boolean(card.quiz_question && card.quiz_answer)
   const [revealed, setRevealed] = useState(false)
+  const tapStart = useRef(null) // distinguishes a tap on the answer from a scroll
 
   // Reset per card — otherwise the next card arrives pre-revealed and the
   // reader never gets the guess, which is the entire mechanic.
@@ -64,29 +65,34 @@ export default function Card({
           the card at phone width and wrapped outside its rounded corner.
           Comments move into the detail sheet, which has room and is where
           someone reading closely already is. */}
-      {/* Opens the detail sheet, not the source.
-          It pointed at the source URL for a while, which meant leaving the app
-          — on a phone that drops you into a new tab and loses your place mid-
-          set. The sheet keeps you here and still carries the source, one tap
-          further on, so the evidence is reachable without the round trip.
-
-          POINTERDOWN, not click: react-tinder-card listens for pointer events
-          natively on the card and gets them before React's synthetic system,
-          so a click handler here is swallowed by the drag. */}
-      <button
+      {/* Straight to the source. POINTERDOWN, not click: react-tinder-card
+          takes pointer events natively on the card and gets them before
+          React's synthetic system, so a click handler here is swallowed by the
+          drag. window.open inside a pointer gesture counts as user activation,
+          so it isn't popup-blocked. */}
+      <a
         className="why-true"
+        href={card.source_url}
+        target="_blank"
+        rel="noreferrer"
         onPointerDown={(e) => {
           e.stopPropagation()
           e.preventDefault()
-          onGoDeeper?.()
+          track(EV.SOURCE_LINK_CLICKED, {
+            card_id: card.id,
+            topic: card.topic,
+            host: hostOf(card.source_url),
+            surface: 'why_its_true',
+          })
+          window.open(card.source_url, '_blank', 'noopener,noreferrer')
         }}
         onClick={(e) => {
-          e.stopPropagation()
           e.preventDefault()
+          e.stopPropagation()
         }}
       >
-        Why it&apos;s true →
-      </button>
+        Why it&apos;s true ↗
+      </a>
     </div>
   )
 
@@ -125,7 +131,47 @@ export default function Card({
               card instead of the text. Stopping pointerdown here keeps the
               drag from starting, and touch-action:pan-y (CSS) tells the
               browser this area scrolls vertically. */}
-          <div className={`answer-panel ${revealed ? 'open' : ''}`}>
+          {/* Once revealed, the panel itself opens the sheet — the natural
+              next move after reading the answer is "tell me more", and the
+              answer is the biggest target on the card.
+
+              Tap, not pointerdown: the panel also SCROLLS, so acting on
+              pointerdown would open the sheet every time someone tried to read
+              past the fold. We compare the down and up positions and only
+              treat it as a tap if the finger barely moved. */}
+          <div
+            className={`answer-panel ${revealed ? 'open' : ''}`}
+            role={revealed ? 'button' : undefined}
+            tabIndex={revealed ? 0 : undefined}
+            onPointerDown={(e) => {
+              // Record where the gesture began so pointerup can tell a tap
+              // from a scroll. Also stops the card's drag handler claiming a
+              // vertical gesture that belongs to this scroll area.
+              if (!revealed) return
+              tapStart.current = { x: e.clientX, y: e.clientY, top: e.currentTarget.scrollTop }
+            }}
+            onPointerUp={(e) => {
+              if (!revealed) return
+              const start = tapStart.current
+              tapStart.current = null
+              if (!start) return
+              const moved = Math.hypot(e.clientX - start.x, e.clientY - start.y)
+              const scrolled = Math.abs(e.currentTarget.scrollTop - start.top)
+              // A tap: the finger barely moved AND the panel didn't scroll.
+              // Either alone is ambiguous — momentum scrolling can end close to
+              // where it began.
+              //
+              // Deliberately NO time limit. A first attempt capped this at
+              // 700ms, which rejected any slow or hesitant tap — duration says
+              // nothing about intent here, only movement does.
+              if (moved < 10 && scrolled < 4) {
+                onGoDeeper?.()
+              }
+            }}
+            onKeyDown={(e) => {
+              if (revealed && (e.key === 'Enter' || e.key === ' ')) onGoDeeper?.()
+            }}
+          >
             {revealed ? (
               <div className="answer-inner">
                 {card.stat && (

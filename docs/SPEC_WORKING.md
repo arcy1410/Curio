@@ -419,17 +419,22 @@ viewport-dwell seen-marking (pausing on background, biased toward
 under-marking per E4) and the surface-dependent save weight are new work
 items. Known constraint (G5): several subtopics currently hold 1 card.
 
-**Card footer, 2026-07.** "Why it's true →" opens the **detail sheet**. It
-briefly pointed straight at the source URL instead, on the reasoning that the
-trust promise deserved the shortest path — but on a phone that means leaving
-the app for a new tab and losing your place mid-set, which costs more than the
-extra tap saves. The sheet keeps the reader in Curio and still carries the
-source one level in, so the evidence stays reachable without the round trip.
+**Card, 2026-07 — two destinations, no overlap.**
 
-It shares a destination with "Go deeper", which is acceptable: one is on the
-card you are reading, the other in the action row, and both mean "show me
-more". `source_link_clicked` still carries `surface` so routes to the source
-remain countable separately.
+- **"Why it's true ↗"** goes straight to the **source**. It is the trust
+  promise, so it gets the shortest path in the product; ↗ marks that it
+  leaves the app.
+- **Tapping the revealed answer** opens the **detail sheet** (same as "Go
+  deeper"). After reading an answer the natural next move is "tell me more",
+  and the answer panel is the largest target on the card.
+
+The answer panel also scrolls, so a tap is distinguished from a scroll by
+movement — under 10px of finger travel and under 4px of scroll. Deliberately
+no time limit: duration says nothing about intent, and an earlier 700ms cap
+rejected slow taps.
+
+`source_link_clicked` carries `surface: 'why_its_true' | 'detail'` so the two
+routes to a source stay countable separately.
 
 ### R6 — Comments
 
