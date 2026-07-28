@@ -3,8 +3,8 @@
 *Team build artifact, drafted section-by-section following the SWPM Session 3
 spec structure (Goals/Non-Goals → Narratives → Requirements → Error Scenarios →
 Telemetry → Acceptance Criteria → NFRs → Prioritization). This working doc
-guides the build; the graded individual Product Specification (4N) is written
-separately, in the student's own words.*
+guides the build; the Product Specification is maintained separately in
+[PRODUCT_SPEC.md](PRODUCT_SPEC.md).*
 
 **Status:** COMPLETE — all nine sections (Goals · Non-Goals · Narratives ·
 Requirements · Error Scenarios · Telemetry · Acceptance Criteria · NFRs ·
@@ -39,18 +39,36 @@ away from ones they pass on — observable via the tuning meter, not something
 they have to take on faith.
 
 **Judged by:** comparing a user's top-scoring topic's share of `card_viewed`
-events in swipes 1–9 against the random baseline (23.8% with today's
-4-topic, 21-card library) — simulation of the shipped scoring code shows this
-reaches ~2× baseline (46–51%) within that window. Live user data replaces
-the simulated number once real cohorts exist. `tuning_meter_toggled` firing
-at least once per session is the secondary signal that the transparency
+events in swipes 1–9 against the uniform-draw baseline — **16.7%** at the MVP
+target library (6 topics × 10 cards). Simulation of the shipped scoring code
+reaches **56.2%, or 3.37× baseline**, inside that window. Live user data
+replaces the simulated number once real cohorts exist. `tuning_meter_toggled`
+firing at least once per session is the secondary signal that the transparency
 mechanism is actually being used, not just present.
 
-**Known constraint, not a defect:** with only 5–6 cards per topic, a user who
-strongly favors one topic exhausts its supply by swipe ~9–10, after which
-the visible shift can't be sustained regardless of preference — a
-content-volume ceiling, not a scoring bug, and the strongest evidence yet for
-prioritizing the Phase-2 content pipeline.
+**Re-derived 2026-07-28, and the re-run changed the story.** The earlier figure
+(23.8% baseline, ~2×) was measured against a 4-topic, 21-card library and is
+stale twice over — the denominator moved, and so did the result. The simulation
+model is stated so it can be argued with: a user picks 2 interests, reveals and
+Likes every card in their favourite topic (+4), passes everything else (−1),
+and no card is re-served.
+
+| Library | Baseline | Simulated share | Favourite exhausted inside 9 swipes |
+|---|---|---|---|
+| 4 topics, 21 cards *(old)* | 23.8% | 52.2% — 2.19× | **73.8% of users** |
+| 6 topics, 50 cards *(today)* | 18.0% | 58.0% — 3.22× | 0.2% |
+| **6 × 10 = 60 *(MVP target)*** | **16.7%** | **56.2% — 3.37×** | **0.0%** |
+
+**The exhaustion column is the real finding.** The old ~2× was not wrong, but it
+was measured on a feed that was already failing: three quarters of simulated
+users ran their favourite topic dry *inside the measurement window*, so the
+personalization claim collapsed at exactly the point it needed to hold. That is
+a content-volume ceiling, not a scoring bug.
+
+**MVP content target: 10 cards per topic, 60 total**, growing from there. At 60
+the ceiling is gone (0.0%), and the ratio *improves* rather than degrading as
+topics are added — more topics lower the baseline, and the scoring still
+concentrates on the favourite. Reproduce with the simulation model above.
 
 ### G3 — Trust (hard invariant)
 
@@ -398,7 +416,7 @@ duplicate re-serve over silently burning a scarce card from the pool (see
 E4). Once marked, the card is not served again in the feed — no duplicates
 across surfaces. (Stated implication: genuinely reading through a full topic
 list retires those cards from the feed; acceptable — the user already read
-them. Makes the R10 pipeline more load-bearing at 21 cards.) Reading alone
+them. Makes the R10 pipeline more load-bearing at a small library.) Reading alone
 never scores; only Save (+3) does. Topic availability is never gated by
 interests — Discover is the anti-filter-bubble surface (G5).
 
@@ -563,10 +581,9 @@ becomes honest — by the third card the feed has visibly begun tuning, so
 swipes and saves both count — a save is a swipe per R4).
 
 **The system must:** let the first **3 swipe-actions** happen with zero
-friction — anonymous, localStorage-backed. On the 8th attempt, block the
-action and show the **auth wall**: sign up / sign in (Supabase Auth; email
-OTP or Google — no passwords to manage), with the card in hand still
-visible underneath. **Merge, never discard:** on signup, all anonymous
+friction — anonymous, localStorage-backed. On the **4th** attempt, block the
+action and show the **auth wall**: sign up / sign in (Supabase Auth; Google —
+no passwords to manage), with the card in hand still visible underneath. **Merge, never discard:** on signup, all anonymous
 state — swipes, Kept, scores, seen, comments — migrates into the account;
 signing up must feel like keeping progress, not restarting. On sign-in
 (existing account, new device), server state wins; anonymous local swipes
@@ -646,11 +663,11 @@ preserved · what the user sees · what they can do next · what's logged.
 
 ### E1 — Auth service unreachable at the sign-in gate
 
-**What failed:** the user hits swipe 8 (R9's gate), but Supabase Auth can't
+**What failed:** the user hits swipe 4 (R9's gate), but Supabase Auth can't
 be reached (network drop, outage, timeout) — distinct from a user-facing
-auth failure like a wrong OTP.
+auth failure like a refused identity.
 
-**State preserved:** all 7 anonymous swipes, scores, and saves stay exactly
+**State preserved:** all 3 anonymous swipes, scores, and saves stay exactly
 as they are in localStorage; the card the user was on remains visible
 underneath the wall.
 
@@ -664,7 +681,7 @@ failure).
 action; a "skip for now" would either break the gate's purpose or invent an
 unspecced partially-gated state.
 
-**Logged:** `signup_gate_error {reason: 'auth_unreachable', swipe_count: 7}`
+**Logged:** `signup_gate_error {reason: 'auth_unreachable', swipe_count: 3}`
 — distinct from `signup_abandoned` so the dashboard can tell "we broke" from
 "they declined."
 
@@ -675,7 +692,7 @@ concrete.
 ### E2 — Signup succeeds but the state merge fails
 
 **What failed:** the account is created and the user authenticated, but
-writing their 7 anonymous swipes/scores/Kept/seen/comments into the new
+writing their 3 anonymous swipes/scores/Kept/seen/comments into the new
 account fails partway or entirely (network drop mid-write, malformed local
 record, server error).
 
@@ -868,21 +885,21 @@ of §4–5 — the places where a precise test matters most.
 - Given a user at 20 who unsaves one card, **when** they save another,
   **then** the save succeeds normally.
 
-### AC4 — The 7-swipe gate
+### AC4 — The 3-swipe gate
 
-- Given an anonymous user with 7 recorded swipe-actions, **when** they
-  attempt an 8th (swipe *or* save), **then** the action is blocked, the
+- Given an anonymous user with 3 recorded swipe-actions, **when** they
+  attempt a 4th (swipe *or* save), **then** the action is blocked, the
   auth wall appears with the current card visible beneath it, and
-  `signup_gate_shown {swipe_count: 7}` fires.
+  `signup_gate_shown {swipe_count: 3}` fires.
 - Given the wall is shown, **when** the user dismisses it without signing
   up, **then** they can still read the current card, browse Discover, and
   open their Kept pile — but any further swipe/save re-raises the wall.
 
 ### AC5 — Merge preserves everything
 
-- Given an anonymous user with 7 swipes, 3 kept cards, and tuned scores,
+- Given an anonymous user with 3 swipes, 3 kept cards, and tuned scores,
   **when** they sign up and the merge completes, **then** the account
-  contains all 7 swipes, all 3 kept cards, and identical scores — and
+  contains all 3 swipes, all 3 kept cards, and identical scores — and
   localStorage is cleared only *after* server confirmation.
 - Given the merge fails after signup, **when** the user continues using the
   app, **then** local state renders unchanged (no reset feed, no empty
@@ -1025,6 +1042,9 @@ items this spec created.
 - **Auth lands last, honestly:** gating swipes at 7 makes little sense
   while the library is 21 cards — the gate monetizes demonstrated interest
   in *fresh* content. Sequencing constraint, not a score: **R10 before R9.**
+  *(Historical: both numbers have since moved — the gate is at 3, and the
+  library is 50 heading to 60. The reasoning is kept because it is why R10
+  shipped first.)*
 - **R4 + R8 ship together** — the save-semantics change *is* the next
   migration event; shipping it without its cue would recreate Rohan's
   story (N2) deliberately.

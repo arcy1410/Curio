@@ -49,27 +49,6 @@ Claude is exactly what's intended.
   distribution is India-first (cricket/markets/Bollywood/history as wedge content).
   These need a reasoned strategy for Demo Day, even though payment stays mocked.
 
-**Graded deliverables (map work to these):**
-
-| Deliverable | Type | Weight | Coding scheme |
-|---|---|---|---|
-| Personas, Problem & Solution Hypothesis | Individual | 15% | 3N-a |
-| MVP Feature & Prioritization Rationale | Group | 10% | 2N-b |
-| Product Specification Document | Individual | 15% | 4N |
-| Product Metrics Dashboard | Group | 10% | 0N |
-| Reflection Essay | Individual | 10% | 4N |
-| Class Participation | Individual | 10% | — |
-| Final Demo | Group | 30% | 2N-c |
-
-**Academic-integrity guardrail (important):** Claude should help **build the product**
-and can brainstorm/discuss freely (that's what the course sanctions). But the graded
-**individual written documents** — Product Spec and Reflection Essay (**4N**) and the
-Personas/Problem-Solution doc (**3N-a**) — must be the student's own original work; do
-**not** ghost-write these. 4N forbids external material and collaboration; 3N-a allows
-discussing general concepts only. When asked to produce one of these, help the student
-think, structure, and critique — but they write it. If unsure how AI assistance maps
-onto a coding scheme, the student should confirm with the instructor.
-
 ## Current status (2026-07-22)
 
 Live at **https://curio-three-iota.vercel.app/** (auto-deploys on push to `main`),

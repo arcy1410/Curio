@@ -5,9 +5,7 @@ build (Session 4) runs against — the core data flow plus the rules any AI agen
 teammate building Curio must obey.*
 
 This is a **team build artifact**. It defines *how* the product is built and what it
-must never do. It does **not** contain the individual graded work (the Personas /
-Problem-Solution hypothesis `3N-a` and the Product Specification `4N` are each
-student's own doc); it's the shared guardrail those build against.
+must never do — the shared guardrail every other document builds against.
 
 ---
 
