@@ -11,6 +11,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { geminiGenerateCard, geminiVerifyCard } from './gemini.js'
 import { openaiGenerateCard, openaiVerifyCard, openaiGenerateQuiz } from './openai.js'
+import { GENERATE_SYSTEM, VERIFY_SYSTEM } from './prompts.js'
 
 const GENERATOR = 'claude-sonnet-5'
 const VERIFIER = 'claude-haiku-4-5'
@@ -116,17 +117,6 @@ const CARD_SCHEMA = {
   additionalProperties: false,
 }
 
-const GENERATE_SYSTEM = `You write short, factual knowledge cards for Curio, a source-grounded reading app for Indian readers aged 18-30.
-
-Rules, in order of importance:
-1. Every single fact in the card MUST appear in the source text provided. Add nothing — no context you happen to know, no dates, no numbers, no names that are not in the source. If the source does not say it, it does not go in the card.
-2. If you are unsure whether something is in the source, leave it out.
-3. Write ~150 words of clean prose in one paragraph. No bullet points, no headings, no markdown.
-4. Lead with the most surprising or concrete thing, not with background.
-5. Plain, direct language. Explain jargon in-line. Do not address the reader as "you", and do not editorialise.
-
-Your output is checked against the source by a separate fact-checking model. Claims you invent will be caught and the card discarded.`
-
 /**
  * Generate one card from a source document.
  * Returns { title, body, usage, cost, model }.
@@ -183,18 +173,6 @@ const VERDICT_SCHEMA = {
   required: ['unsupported_claims'],
   additionalProperties: false,
 }
-
-const VERIFY_SYSTEM = `You are a fact-checker. You are given a source text and a card written from it.
-
-Your only job: list every claim in the card that is NOT directly supported by the source text.
-
-Guidance:
-- A claim is supported only if the source text states it. Do not use your own knowledge to excuse a claim — a fact can be true in the world and still be unsupported by THIS source.
-- Rewording and summarising are fine. A claim is supported if the source says the same thing in different words.
-- Reasonable paraphrase and compression are not errors. Added specifics are: a date, number, name, or causal link that the source does not contain is unsupported.
-- If every claim is supported, return an empty array.
-
-Be strict. A card that passes will be shown to readers as fact-checked.`
 
 /**
  * Check a generated card against its source.
