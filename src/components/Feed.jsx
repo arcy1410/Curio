@@ -35,6 +35,15 @@ export default function Feed({
   onLockedUndo = () => {},
   onGoDeeper,
   onReveal,
+  // Exhaustion refill: App generates fresh cards when the deck runs dry and
+  // reports progress; the empty state offers the quiz/explore detours.
+  onExhausted = () => {},
+  genStatus = null, // null | {status:'running',done,total} | {status:'done'} | {status:'error'}
+  onStartQuiz,
+  onExplore,
+  quizAvailable = 0, // seen cards that carry a quiz question
+  libraryVersion = 0, // bumps when App appends generated cards
+  seenVersion = 0, // bumps on swipes AND drops to 0 on replay
 }) {
   const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
@@ -212,12 +221,37 @@ export default function Feed({
     })
   }, [topId, deck])
 
-  // The user reached the end of the available deck.
+  // The user reached the end of the available deck. Telling App is what
+  // starts the background refill — the feed itself never generates (R2).
   useEffect(() => {
     if (ready && deck.length === 0) {
       track(EV.FEED_EXHAUSTED, { cards_seen: viewedRef.current.size })
+      onExhausted()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, deck.length])
+
+  // Refill an empty deck when the pool changes underneath it: generated cards
+  // arriving (libraryVersion) or a replay clearing `seen` (seenVersion).
+  //
+  // This also fixes a latent bug — "Swipe again" cleared the seen set but
+  // nothing ever redrew the deck, because the only fill effect ran on
+  // cardsReady. The deck is Feed-local state; something has to deal back in.
+  useEffect(() => {
+    if (!ready || deck.length > 0) return
+    const refill = []
+    for (let i = 0; i < DECK_SIZE; i++) {
+      const c = drawNext(refill.map((x) => x.id))
+      if (!c) break
+      refill.push(c)
+    }
+    if (refill.length) {
+      swiped.current = new Set()
+      advanced.current = new Set()
+      setDeck(refill)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, deck.length, libraryVersion, seenVersion])
 
   return (
     // feed-root, not a bare div: .screen is a flex column and this sits
@@ -264,14 +298,46 @@ export default function Feed({
         <div className="deck">
           {ready && deck.length === 0 && (
             <div className="empty">
-              <div className="big">🎉</div>
-              <h3>You&apos;re all caught up</h3>
-              <p>
-                You&apos;ve been through every card in this prototype. Start over to swipe
-                the deck again — your feed keeps the taste it learned.
-              </p>
-              <button className="btn-ghost" onClick={onReplay}>
-                Swipe again
+              {genStatus?.status === 'running' ? (
+                <>
+                  <div className="big">✍️</div>
+                  <h3>You&apos;ve read the whole library</h3>
+                  <p>
+                    Fresh cards are being written and fact-checked for your taste
+                    — {genStatus.done} of {genStatus.total} done. While they brew:
+                  </p>
+                </>
+              ) : genStatus?.status === 'error' ? (
+                <>
+                  <div className="big">😴</div>
+                  <h3>You&apos;re all caught up</h3>
+                  <p>
+                    New cards couldn&apos;t be written just now — we&apos;ll try again next
+                    time. Meanwhile:
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="big">🎉</div>
+                  <h3>You&apos;re all caught up</h3>
+                  <p>You&apos;ve been through every card. Keep the streak useful:</p>
+                </>
+              )}
+
+              <div className="empty-actions">
+                {quizAvailable >= 3 && onStartQuiz && (
+                  <button className="btn-primary" onClick={onStartQuiz}>
+                    🧠 Quiz what you&apos;ve read
+                  </button>
+                )}
+                {onExplore && (
+                  <button className="btn-ghost" onClick={onExplore}>
+                    🧭 Explore new topics
+                  </button>
+                )}
+              </div>
+              <button className="replay-link mono" onClick={onReplay}>
+                or swipe the deck again — your tuning stays
               </button>
             </div>
           )}

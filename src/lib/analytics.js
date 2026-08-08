@@ -140,6 +140,16 @@ export const EV = {
   FEED_EXHAUSTED: 'feed_exhausted',
   FEED_REPLAYED: 'feed_replayed',
 
+  // exhaustion refill — cards generated on demand when the deck runs dry
+  FEED_REFILL_STARTED: 'feed_refill_started', // {requested}
+  FEED_REFILL_COMPLETED: 'feed_refill_completed', // {requested, delivered, skipped, failed, duration_s}
+
+  // recall quiz — offered while a refill runs; measured retention, so these
+  // feed the North Star ("kept & retained") directly
+  RECALL_QUIZ_STARTED: 'recall_quiz_started', // {card_count}
+  RECALL_QUIZ_GRADED: 'recall_quiz_graded', // {card_id, topic, remembered} — self-graded
+  RECALL_QUIZ_COMPLETED: 'recall_quiz_completed', // {card_count, remembered_count}
+
   // personalization transparency
   TUNING_METER_TOGGLED: 'tuning_meter_toggled',
 

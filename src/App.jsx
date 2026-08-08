@@ -35,7 +35,10 @@ import {
   applyTopSignal,
   pickNextCard,
   addInterestBonus,
+  topicDistribution,
 } from './lib/scoring.js'
+import { generateOneCard } from './lib/refill.js'
+import QuizMode from './components/QuizMode.jsx'
 import { haptic } from './lib/haptics.js'
 import { storedTheme, setTheme } from './lib/theme.js'
 import { markReviewed } from './lib/review.js'
@@ -603,6 +606,115 @@ export default function App() {
     return 'saved'
   }
 
+  // ── Exhaustion refill: write fresh cards while the user detours ──
+  //
+  // When the deck runs dry, App asks /api/refill for one card at a time, ten
+  // times. One request per card is the whole progress mechanism — the chip's
+  // "writing 3/10" is just the loop counter, no run table to poll — and it
+  // means closing the tab stops the spend mid-batch.
+  //
+  // The batch is buffered and released whole. Cards trickling into the deck
+  // one at a time would yank the empty state — and the quiz/explore options
+  // on it — out from under the user twenty seconds after they read it. One
+  // release, one notification, and the deck deals back in when they return.
+  const REFILL_BATCH = 10
+  const [gen, setGen] = useState(null) // null | {status:'running',done,total} | {status:'done',delivered} | {status:'error'}
+  const genRunningRef = useRef(false)
+
+  // Personalized: each slot samples a topic from the same distribution the
+  // deck draws with, so ten new cards lean the way the user's tuning leans.
+  const sampleTopic = useCallback(() => {
+    const dist = topicDistribution(scoresRef.current)
+    let r = Math.random()
+    for (const [id, p] of Object.entries(dist)) {
+      r -= p
+      if (r <= 0) return id
+    }
+    return Object.keys(dist)[0]
+  }, [])
+
+  const startRefill = useCallback(() => {
+    if (genRunningRef.current) return
+    // Seed mode means no Supabase behind us — nowhere to write, nothing to
+    // read back. The empty state still offers quiz/explore, just no promise.
+    if (cardSource !== 'supabase') return
+    genRunningRef.current = true
+
+    const total = REFILL_BATCH
+    const t0 = Date.now()
+    setGen({ status: 'running', done: 0, total })
+    track(EV.FEED_REFILL_STARTED, { requested: total })
+
+    ;(async () => {
+      const fresh = []
+      let failed = 0
+      let skipped = 0
+      let done = 0
+      let next = 0
+      // Two workers, not ten and not one. Generation with a reasoning-model
+      // verifier runs ~60–90s per card (measured), so a serial batch is ~13
+      // minutes — too long for "while you take the quiz". Two in flight
+      // halves it without hammering the API's rate limits.
+      const worker = async () => {
+        while (next < total && failed < 3) {
+          next++
+          const out = await generateOneCard(sampleTopic())
+          if (import.meta.env.DEV) console.debug(`[refill] out=${out.result} ${out.error ?? ''}`)
+          if (out.result === 'published' && out.card) {
+            fresh.push(out.card)
+            failed = 0 // only CONSECUTIVE failures abort
+          } else if (out.result === 'error') {
+            failed++ // auth gone, rate-limited, or API down — workers drain out
+          } else {
+            skipped++ // no_source / discarded: normal, move on
+          }
+          done++
+          setGen((g) => (g?.status === 'running' ? { ...g, done } : g))
+        }
+      }
+      await Promise.all([worker(), worker()])
+
+      if (fresh.length) {
+        // Release the batch: newest first, same as the store's own ordering.
+        cardsRef.current = [...fresh, ...cardsRef.current]
+        setCards(cardsRef.current)
+        haptic.success()
+        setToast(`✨ ${fresh.length} fresh card${fresh.length === 1 ? '' : 's'} in your feed`)
+      }
+      track(EV.FEED_REFILL_COMPLETED, {
+        requested: total,
+        delivered: fresh.length,
+        skipped,
+        failed,
+        duration_s: Math.round((Date.now() - t0) / 1000),
+      })
+      setGen(fresh.length ? { status: 'done', delivered: fresh.length } : { status: 'error' })
+      // Chip lingers long enough to be seen from any tab, then clears. The
+      // running-guard resets with it so a future exhaustion can refill again.
+      setTimeout(() => {
+        setGen(null)
+        genRunningRef.current = false
+      }, 8000)
+    })()
+  }, [cardSource, sampleTopic])
+
+  // ── Recall quiz over seen cards (offered while the refill runs) ──
+  const [quizCards, setQuizCards] = useState(null)
+  const quizPool = useMemo(
+    () =>
+      state.seen
+        .map((id) => cardById[id])
+        .filter((c) => c?.quiz_question && c?.quiz_answer),
+    [state.seen, cardById]
+  )
+  const startQuiz = useCallback(() => {
+    haptic.open()
+    // Snapshot: shuffled once at open, capped at 8 — the sheet must not
+    // reshuffle under the user on a re-render.
+    const picked = [...quizPool].sort(() => Math.random() - 0.5).slice(0, 8)
+    setQuizCards(picked)
+  }, [quizPool])
+
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
   function replay() {
     track(EV.FEED_REPLAYED, { swipes_so_far: state.swipes.length })
@@ -698,6 +810,20 @@ export default function App() {
           {tab === 'kept' && 'Your saved cards'}
           {tab === 'profile' && 'Your Curio'}
         </div>
+        {/* Refill progress, visible from every tab — the user is most likely
+            in the quiz or Discover while the batch writes. */}
+        {gen && (
+          <div className={`gen-chip ${gen.status}`} role="status">
+            {gen.status === 'running' && (
+              <>
+                <span className="gen-dot" />
+                writing {Math.min(gen.done + 1, gen.total)}/{gen.total}
+              </>
+            )}
+            {gen.status === 'done' && <>✓ {gen.delivered} new cards</>}
+            {gen.status === 'error' && <>no new cards yet</>}
+          </div>
+        )}
       </header>
 
       <main className="screen">
@@ -720,6 +846,17 @@ export default function App() {
             gated={gated}
             onGateHit={hitGate}
             onLockedUndo={() => lockedFeature('swipe_undo', 'Undo is a Curio+ feature')}
+            onExhausted={startRefill}
+            genStatus={gen}
+            onStartQuiz={startQuiz}
+            onExplore={() => {
+              haptic.nav()
+              track(EV.TAB_CHANGED, { from: 'feed', to: 'discover', source: 'exhausted' })
+              setTab('discover')
+            }}
+            quizAvailable={quizPool.length}
+            libraryVersion={cards.length}
+            seenVersion={state.seen.length}
           />
         )}
         {tab === 'discover' && (
@@ -839,6 +976,8 @@ export default function App() {
           }}
         />
       )}
+
+      {quizCards && <QuizMode cards={quizCards} onClose={() => setQuizCards(null)} />}
 
       {commentsCard && (
         <Comments
