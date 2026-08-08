@@ -214,18 +214,22 @@ export default function App() {
   // The gate opens on the 8th swipe-action; saves count as swipes (R4).
   const gated = !signedIn && state.swipes.length >= FREE_SWIPE_ACTIONS
 
-  // Dismissing the wall means "not now" — and re-opening it on the very next
-  // swipe makes that answer meaningless. R9 still fails closed (the swipe is
-  // still blocked), but after one dismissal the block is a quiet toast rather
-  // than a modal, and Sign in stays permanently available on You.
+  // A dismissed wall re-raises on the next swipe-action — which is what AC4
+  // specified all along. The shipped version "respected" the dismissal by
+  // downgrading to a toast pointing at the You tab, and the first real tester
+  // to hit it (Yashvi, 8 Aug) experienced that as a dead end: "it should be an
+  // actionable pop up". She's right about the intent model too — dismissing
+  // says "not now", but *swiping again* is the user asking to continue, and
+  // answering that with a passive toast refuses the very intent the gate
+  // exists to capture. The wall stays dismissable, so this never loops.
   const wallDismissedRef = useRef(false)
-  const hitGate = useCallback(() => {
-    if (wallDismissedRef.current) {
-      setToast('Sign in to keep swiping — see You')
-      return
-    }
+  const hitGate = useCallback((source = 'swipe') => {
     setWallOpen(true)
-    track(EV.SIGNUP_GATE_SHOWN, { swipe_count: statsRef.current.swipes })
+    track(EV.SIGNUP_GATE_SHOWN, {
+      swipe_count: statsRef.current.swipes,
+      reopened: wallDismissedRef.current,
+      source,
+    })
   }, [])
 
   useEffect(() => {

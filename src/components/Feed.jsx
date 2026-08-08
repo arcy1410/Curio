@@ -250,6 +250,16 @@ export default function Feed({
 
       <TuningMeter scores={scores} swipeCount={swipeCount} />
 
+      {/* Gated + wall closed = the state Yashvi hit: blocked with no visible
+          way back to sign-in. The banner IS the way back — plain button, one
+          tap reopens the wall. It sits outside the card, so onClick is safe
+          (the pointerdown rule only applies inside react-tinder-card). */}
+      {gated && (
+        <button className="gate-banner" onClick={() => onGateHit('banner')}>
+          🔒 Reading stays free — <strong>sign in to keep swiping</strong>
+        </button>
+      )}
+
       <div className="deck-wrap">
         <div className="deck">
           {ready && deck.length === 0 && (

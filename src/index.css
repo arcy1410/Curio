@@ -2051,6 +2051,29 @@ button {
   justify-content: center;
   gap: 12px;
 }
+
+/* The way back to sign-in after the wall was dismissed (Yashvi's dead end).
+   Styled as information with one obvious action, not an alarm — the reading
+   experience it interrupts is still fully available. */
+.gate-banner {
+  display: block;
+  width: 100%;
+  margin: 10px 0 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+}
+.gate-banner strong {
+  color: var(--accent);
+}
+.gate-banner:active {
+  transform: scale(0.99);
+}
 .action-hint {
   font-family: var(--mono);
   text-transform: uppercase;
