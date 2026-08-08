@@ -261,8 +261,17 @@ per-card keep-rate as a quality proxy plus a sampled human read.
 
 ## 7. If asked to show it live
 
-**Built, 8 Aug — the dashboard exists and computes on live data:**
-https://us.posthog.com/project/523396/dashboard/1972439
+**Built, 8 Aug — three layers, use whichever fits the moment:**
+
+1. **The live page (presentation-grade, no login):**
+   https://curio-three-iota.vercel.app/metrics.html — Curio-designed, queries
+   production on every load via `/api/metrics` (the PostHog key stays
+   server-side; the page serves aggregates only). *Requires
+   `POSTHOG_PERSONAL_KEY` + `POSTHOG_PROJECT_ID` in Vercel env.*
+2. **PostHog (live drill-down, team login):**
+   https://us.posthog.com/project/523396/dashboard/1972439
+3. **The artifact (frozen snapshot for sharing):**
+   https://claude.ai/code/artifact/3c6ba862-c9bb-4bc9-8c7f-79c92d9bb716
 
 Nine tiles: activation funnel · the intro-screen leak (the root-cause
 exhibit) · day-over-day cohort retention · North Star trend · WAU · keep

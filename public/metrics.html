@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Curio — Product Metrics (live)</title>
+<!--
+  The live metrics page. Standalone on purpose: it is NOT part of the app UI
+  (no route, no nav link) — it's the Demo Day dashboard, served from the same
+  deployment so /api/metrics is same-origin. Data arrives aggregated; the
+  PostHog key never leaves the server.
+-->
+<style>
+  :root {
+    --bg: #f7f4d5;
+    --surface: #fffdf1;
+    --surface-2: #efebc6;
+    --ink: #0a3323;
+    --ink-2: #4a6b57;
+    --ink-3: #8a9c86;
+    --line: rgba(10, 51, 35, 0.14);
+    --line-2: rgba(10, 51, 35, 0.07);
+    --accent: #105666;
+    --chart-1: #0092a8;   /* validated series teal (light) */
+    --chart-2: #c05530;   /* validated pair terracotta (light) */
+    --good: #5e7a34;
+    --good-bg: rgba(94, 122, 52, 0.12);
+    --shadow: 0 18px 40px -24px rgba(10, 51, 35, 0.4);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #07231a;
+      --surface: #0a3323;
+      --surface-2: #0e3d2a;
+      --ink: #f7f4d5;
+      --ink-2: #b7cdb3;
+      --ink-3: #7c9a85;
+      --line: rgba(247, 244, 213, 0.16);
+      --line-2: rgba(247, 244, 213, 0.08);
+      --accent: #4fa3ad;
+      --chart-1: #1e93ad; /* validated series teal (dark) */
+      --chart-2: #d9713c; /* validated pair terracotta (dark) */
+      --good: #9db472;
+      --good-bg: rgba(157, 180, 114, 0.14);
+      --shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.7);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    line-height: 1.5;
+    margin: 0;
+    padding: 40px 20px 64px;
+  }
+  .page { max-width: 1060px; margin: 0 auto; }
+
+  .mono {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .label {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  header { margin-bottom: 28px; }
+  .wordmark { font-family: Georgia, serif; font-size: 30px; font-weight: 700; }
+  .wordmark .dot { color: var(--chart-2); }
+  .headrow { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  h1.title { font-family: Georgia, serif; font-size: 40px; font-weight: 400; margin: 10px 0 6px; text-wrap: balance; }
+  .sub { color: var(--ink-2); font-size: 14.5px; max-width: 64ch; margin: 0; }
+  .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--good); margin-right: 6px;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+  .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; margin-top: 26px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+    grid-column: span 12;
+    min-width: 0;
+  }
+  @media (min-width: 800px) {
+    .span-7 { grid-column: span 7; }
+    .span-5 { grid-column: span 5; }
+  }
+
+  .kicker { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .hero-num {
+    font-family: Georgia, serif;
+    font-size: 64px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+    margin: 6px 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-unit { font-size: 16px; color: var(--ink-2); font-family: inherit; }
+  .note { color: var(--ink-2); font-size: 13.5px; margin: 10px 0 0; max-width: 58ch; }
+  .note strong { color: var(--ink); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+  }
+  .pill.good { background: var(--good-bg); color: var(--good); }
+  .pill.flag { background: rgba(192, 85, 48, 0.13); color: var(--chart-2); }
+
+  .statrow { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 4px; }
+  .stat .n { font-family: Georgia, serif; font-size: 30px; font-variant-numeric: tabular-nums; }
+  .stat .cap { color: var(--ink-2); font-size: 12.5px; margin-top: 2px; }
+
+  svg { display: block; }
+  svg text {
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-track { fill: var(--line-2); }
+
+  #tip {
+    position: fixed; z-index: 10; pointer-events: none;
+    background: var(--ink); color: var(--bg);
+    padding: 6px 10px; border-radius: 8px;
+    font-size: 12.5px; font-family: ui-monospace, Menlo, monospace;
+    opacity: 0; transition: opacity 0.12s;
+    max-width: 260px;
+  }
+  @media (prefers-reduced-motion: reduce) { #tip { transition: none; } }
+
+  footer { margin-top: 30px; color: var(--ink-2); font-size: 13px; }
+  footer a { color: var(--accent); }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 26px 0 18px; }
+
+  #loading, #fail {
+    text-align: center; padding: 80px 20px; color: var(--ink-2);
+    font-size: 15px;
+  }
+  #fail { display: none; }
+  #board { display: none; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="headrow">
+      <div class="wordmark">Curio<span class="dot">.</span></div>
+      <div class="label" id="stamp"><span class="live-dot"></span>LIVE</div>
+    </div>
+    <h1 class="title">Product metrics — the pilot cohort, read honestly</h1>
+    <p class="sub">
+      Every number on this page is queried from production events when you load it.
+      The cohort is small and mostly classmates, so these are baselines being set,
+      not traction being claimed.
+    </p>
+  </header>
+
+  <div id="loading">Pulling live numbers…</div>
+  <div id="fail">
+    Can't reach the metrics service right now. The numbers are safe — this page
+    just can't fetch them. Try a refresh in a moment.
+  </div>
+
+  <div class="grid" id="board">
+
+    <div class="card span-7">
+      <div class="kicker"><span class="label">★ North Star</span></div>
+      <div class="hero-num" id="nsHero">–</div>
+      <p class="note">
+        <strong>Retained = returned to in a later session</strong> — a spaced review or a
+        reopened card from Kept. This is the honest reading of a young cohort against a
+        multi-day metric: the North Star <em>cannot</em> score until someone saves, leaves,
+        and returns — and nothing brings them back yet (notifications are deliberately not
+        built). The metric is doing its job: pointing at return as the battleground.
+      </p>
+      <div class="statrow" style="margin-top:14px" id="nsStats"></div>
+    </div>
+
+    <div class="card span-5">
+      <div class="kicker">
+        <span class="label">Guardrail — session length</span>
+        <span class="pill good" id="sessPill">✓ holding</span>
+      </div>
+      <div class="hero-num mono" style="font-size:52px" id="sessHero">–</div>
+      <svg id="sessChart" width="100%" height="96" viewBox="0 0 380 96" role="img"
+           aria-label="Median real session length by week"></svg>
+      <p class="note">
+        A <strong>ceiling, not a target</strong> — rising session length is the doom-scroll
+        failure this product is positioned against. Sub-30-second tab-switch stints excluded.
+        If streaks ever lengthen sessions instead of multiplying them, streaks come out.
+      </p>
+    </div>
+
+    <div class="card span-7">
+      <div class="kicker">
+        <span class="label">Root cause — found in this data</span>
+        <span class="pill flag" id="leakPill"></span>
+      </div>
+      <svg id="leakChart" width="100%" height="150" viewBox="0 0 560 150" role="img"
+           aria-label="Onboarding drop-off"></svg>
+      <p class="note" id="leakNote"></p>
+    </div>
+
+    <div class="card span-5">
+      <div class="kicker"><span class="label">Activation</span> <span class="pill good" id="actPill">✓ works</span></div>
+      <div class="statrow" id="actStats"></div>
+      <hr class="rule">
+      <div class="kicker"><span class="label">Sign-in gate · at 3 swipes</span></div>
+      <div class="statrow" id="gateStats"></div>
+      <p class="note">Cohort-wide unique people — weekly ratios mislead when a sign-in
+        lands in a different week than the wall.</p>
+    </div>
+
+    <div class="card span-7">
+      <div class="kicker"><span class="label">The funnel — unique people</span></div>
+      <svg id="funnelChart" width="100%" height="230" viewBox="0 0 560 230" role="img"
+           aria-label="Activation funnel"></svg>
+    </div>
+
+    <div class="card span-5">
+      <div class="kicker"><span class="label">Swipe mix — is the feed serving hits?</span></div>
+      <svg id="mixChart" width="100%" height="70" viewBox="0 0 380 70" role="img"
+           aria-label="Interested versus pass"></svg>
+      <p class="note" id="mixNote"></p>
+      <hr class="rule">
+      <div class="kicker"><span class="label">Keep rate</span></div>
+      <div class="statrow" id="keepStats"></div>
+    </div>
+
+    <div class="card" style="grid-column: span 12">
+      <div class="kicker"><span class="label">Weekly actives</span></div>
+      <svg id="wauChart" width="100%" height="120" viewBox="0 0 1010 120" role="img"
+           aria-label="Weekly active users"></svg>
+      <p class="note">The launch-week spike is the class share. The number that matters is
+        whether the <em>next</em> cohort returns without being in the room when the link
+        was shared.</p>
+    </div>
+
+  </div>
+
+  <footer>
+    <p>
+      Drill-down: <a href="https://us.posthog.com/project/523396/dashboard/1972439">PostHog dashboard</a>
+      (team login) · Instrumentation: explicit event taxonomy, autocapture off, no user
+      text ever sent. This page serves aggregates only.
+    </p>
+  </footer>
+</div>
+
+<div id="tip" role="status"></div>
+
+<script>
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $ = (id) => document.getElementById(id);
+  const tip = $('tip');
+  const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+
+  function bindTips(svg) {
+    svg.querySelectorAll('[data-tip]').forEach((el) => {
+      el.addEventListener('pointerenter', () => { tip.textContent = el.dataset.tip; tip.style.opacity = 1; });
+      el.addEventListener('pointermove', (e) => {
+        tip.style.left = Math.min(e.clientX + 14, innerWidth - 270) + 'px';
+        tip.style.top = e.clientY + 14 + 'px';
+      });
+      el.addEventListener('pointerleave', () => { tip.style.opacity = 0; });
+    });
+  }
+  const S = (tag, attrs) => {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  };
+  const stat = (n, cap) =>
+    `<div class="stat"><div class="n mono">${n}</div><div class="cap">${cap}</div></div>`;
+
+  let DATA = null;
+
+  function draw() {
+    if (!DATA) return;
+    const d = DATA;
+    const teal = css('--chart-1'), terra = css('--chart-2'),
+          ink2 = css('--ink-2'), ink3 = css('--ink-3'), surface = css('--surface');
+    const f = d.funnel;
+
+    // ── header stamp ──
+    const t = new Date(d.updatedAt);
+    $('stamp').innerHTML =
+      `<span class="live-dot"></span>LIVE · ${d.window.from} – ${d.window.to} · n = ${d.totals.people} · updated ${t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${d.stale ? ' (cached)' : ''}`;
+
+    // ── North Star ──
+    const nsVal = d.ns.savers >= 5 && d.ns.returnedToCard >= 5
+      ? (d.ns.returnedToCard / d.ns.savers).toFixed(2)
+      : '~0';
+    $('nsHero').innerHTML = `${nsVal}<span class="hero-unit"> cards retained / weekly active user</span>`;
+    $('nsStats').innerHTML =
+      stat(d.ns.savers, 'savers') +
+      stat(d.ns.returnedToCard, 'returned to a card') +
+      stat(pct(d.secondDay.returned, d.secondDay.people) + '%', 'came back a second day');
+
+    // ── guardrail ──
+    const weeks = d.weekly.filter((w) => w.medianSessionS != null);
+    const lastMed = weeks.length ? weeks[weeks.length - 1].medianSessionS : 0;
+    const worstMed = Math.max(...weeks.map((w) => w.medianSessionS), 0);
+    $('sessHero').innerHTML = `${(lastMed / 60).toFixed(1)}<span class="hero-unit"> min median · ceiling 6</span>`;
+    $('sessPill').textContent = worstMed <= 360 ? '✓ holding' : '⚠ rising';
+    $('sessPill').className = 'pill ' + (worstMed <= 360 ? 'good' : 'flag');
+
+    const wkLabel = (w) => {
+      const dt = new Date(w.week);
+      return dt.toLocaleDateString([], { day: 'numeric', month: 'short' });
+    };
+
+    // weekly line
+    (function () {
+      const svg = $('sessChart');
+      svg.innerHTML = '';
+      const vals = weeks.map((w) => w.medianSessionS), labels = weeks.map(wkLabel);
+      if (vals.length < 2) return;
+      const W = 380, H = 96, padL = 8, padR = 46, padT = 10, padB = 22;
+      const ceiling = 360;
+      const max = Math.max(...vals, ceiling) * 1.15;
+      const x = (i) => padL + (i * (W - padL - padR)) / (vals.length - 1);
+      const y = (v) => H - padB - ((H - padB - padT) * v) / max;
+      svg.append(S('line', { x1: padL, x2: W - padR, y1: y(ceiling), y2: y(ceiling), stroke: ink3, 'stroke-dasharray': '4 4', 'stroke-width': 1 }));
+      const ct = S('text', { x: W - padR + 6, y: y(ceiling) + 4, 'font-size': 10, fill: ink3 });
+      ct.textContent = 'ceiling';
+      svg.append(ct);
+      svg.append(S('path', { d: vals.map((v, i) => `${i ? 'L' : 'M'}${x(i)},${y(v)}`).join(''), fill: 'none', stroke: teal, 'stroke-width': 2, 'stroke-linecap': 'round' }));
+      vals.forEach((v, i) => {
+        const last = i === vals.length - 1;
+        const dot = S('circle', { cx: x(i), cy: y(v), r: last ? 5 : 4, fill: last ? teal : surface, stroke: teal, 'stroke-width': 2 });
+        dot.dataset.tip = `w/c ${labels[i]}: ${Math.round(v)}s median`;
+        svg.append(dot);
+        const tl = S('text', { x: x(i), y: H - 6, 'font-size': 10, fill: ink3, 'text-anchor': i === 0 ? 'start' : last ? 'end' : 'middle' });
+        tl.textContent = labels[i];
+        svg.append(tl);
+      });
+      const end = S('text', { x: x(vals.length - 1) - 10, y: y(vals[vals.length - 1]) + 4, 'font-size': 12, fill: css('--ink'), 'text-anchor': 'end' });
+      end.textContent = Math.round(vals[vals.length - 1]) + 's';
+      svg.append(end);
+      bindTips(svg);
+    })();
+
+    // ── funnel bars ──
+    function funnelBars(svg, rows, annotate) {
+      svg.innerHTML = '';
+      const W = svg.viewBox.baseVal.width, rowH = 34, barH = 16, left = 4, right = 116;
+      const max = rows[0][1];
+      rows.forEach(([label, v], i) => {
+        const y = 12 + i * rowH;
+        const w = Math.max(6, (W - left - right) * (v / max));
+        svg.append(S('rect', { x: left, y, width: W - left - right, height: barH, rx: 4, class: 'bar-track' }));
+        const bar = S('rect', { x: left, y, width: w, height: barH, rx: 4, fill: teal });
+        bar.dataset.tip = `${label}: ${v} people` + (i ? ` · ${pct(v, max)}% of start` : '');
+        svg.append(bar);
+        const t1 = S('text', { x: left, y: y + barH + 13, 'font-size': 11, fill: ink2 });
+        t1.textContent = label;
+        svg.append(t1);
+        const t2 = S('text', { x: W - right + 10, y: y + barH - 3, 'font-size': 13, fill: css('--ink') });
+        t2.textContent = v;
+        svg.append(t2);
+      });
+      if (annotate) {
+        // Sits beside the second row's value — start past the 3-digit column
+        // so the two never collide.
+        const t = S('text', { x: W - right + 44, y: 12 + rowH + 13, 'font-size': 11, fill: terra });
+        t.textContent = annotate;
+        svg.append(t);
+      }
+      bindTips(svg);
+    }
+
+    const leakN = f.started - f.toggled;
+    const leakPct = pct(leakN, f.started);
+    $('leakPill').textContent = `${leakPct}% bounce before the first tap`;
+    $('leakNote').innerHTML =
+      `The biggest leak in the funnel is <strong>before the topic picker</strong> — ${leakN} of ${f.started}
+       visitors opened onboarding and never touched a single topic. The drop isn't choice paralysis
+       or the goal step; it's the intro screen. Fix candidate: collapse step 0 and lead with the
+       picker. This is the next A/B.`;
+    funnelBars($('leakChart'), [
+      ['Opened onboarding', f.started],
+      ['Touched a topic', f.toggled],
+      ['Completed', f.completed],
+    ], `← −${leakN} here`);
+
+    funnelBars($('funnelChart'), [
+      ['Started onboarding', f.started],
+      ['Touched a topic', f.toggled],
+      ['Completed onboarding', f.completed],
+      ['Swiped at least once', f.swiped],
+      ['Saved a card', f.saved],
+      ['Signed in', f.signedIn],
+    ]);
+
+    // ── activation + gate ──
+    const act = pct(f.viewed, f.started);
+    $('actPill').textContent = act >= 75 ? '✓ works' : '⚠ below target';
+    $('actPill').className = 'pill ' + (act >= 75 ? 'good' : 'flag');
+    $('actStats').innerHTML =
+      stat(act + '%', 'of starts reach a first card<br>(target ≥ 75%)') +
+      stat(Math.round(d.ttfcMedianS ?? 0) + 's', 'median to first card<br>(target &lt; 60s)');
+    $('gateStats').innerHTML =
+      stat(pct(f.signedIn, f.gateShown) + '%', `of gated users sign in (${f.signedIn} of ${f.gateShown})<br>at the keep-or-move threshold`);
+
+    // ── swipe mix ──
+    (function () {
+      const svg = $('mixChart');
+      svg.innerHTML = '';
+      const a = d.swipeMix.interested, b = d.swipeMix.pass, total = a + b || 1;
+      const W = 380, barH = 22, y = 14;
+      const wA = (W - 2) * (a / total);
+      const r1 = S('rect', { x: 0, y, width: wA, height: barH, rx: 4, fill: teal });
+      r1.dataset.tip = `Interested: ${a} swipes (${pct(a, total)}%)`;
+      const r2 = S('rect', { x: wA + 2, y, width: W - wA - 2, height: barH, rx: 4, fill: terra });
+      r2.dataset.tip = `Pass: ${b} swipes (${pct(b, total)}%)`;
+      svg.append(r1, r2);
+      const t1 = S('text', { x: 0, y: y + barH + 18, 'font-size': 11.5, fill: teal });
+      t1.textContent = `● Interested ${a}`;
+      const t2 = S('text', { x: W, y: y + barH + 18, 'font-size': 11.5, fill: terra, 'text-anchor': 'end' });
+      t2.textContent = `Pass ${b} ●`;
+      svg.append(t1, t2);
+      bindTips(svg);
+      const ratio = b ? (a / b).toFixed(1) : '∞';
+      $('mixNote').innerHTML =
+        `<strong>${ratio} : 1 positive.</strong> ${pct(a, total)}% of swipe verdicts are
+         “more like this.” A falling ratio is the personalization engine failing — it feeds
+         the North Star through save volume.`;
+    })();
+
+    // ── keep rate ──
+    const views = d.weekly.reduce((s, w) => s + w.views, 0);
+    const saves = d.weekly.reduce((s, w) => s + w.saves, 0);
+    $('keepStats').innerHTML =
+      stat((views ? ((saves / views) * 100).toFixed(1) : '0') + '%', 'of card views become saves —<br>the per-card tone proxy (SH7)') +
+      stat(pct(d.ns.savers, f.viewed) + '%', 'of readers saved ≥ 1 card');
+
+    // ── WAU ──
+    (function () {
+      const svg = $('wauChart');
+      svg.innerHTML = '';
+      const W = 1010, H = 120, n = d.weekly.length;
+      if (!n) return;
+      const max = Math.max(...d.weekly.map((w) => w.wau)) * 1.1 || 1;
+      const gap = 24, bw = Math.min(190, (W - gap * (n + 1)) / n);
+      const total = bw * n + gap * (n - 1), x0 = (W - total) / 2;
+      d.weekly.forEach((w, i) => {
+        const x = x0 + i * (bw + gap), h = ((H - 40) * w.wau) / max, y = H - 26 - h;
+        const bar = S('rect', { x, y, width: bw, height: Math.max(2, h), rx: 4, fill: teal });
+        bar.dataset.tip = `w/c ${wkLabel(w)}: ${w.wau} weekly actives`;
+        svg.append(bar);
+        const tv = S('text', { x: x + bw / 2, y: y - 6, 'font-size': 13, fill: css('--ink'), 'text-anchor': 'middle' });
+        tv.textContent = w.wau;
+        svg.append(tv);
+        const tl = S('text', { x: x + bw / 2, y: H - 8, 'font-size': 11, fill: ink3, 'text-anchor': 'middle' });
+        tl.textContent = wkLabel(w);
+        svg.append(tl);
+      });
+      bindTips(svg);
+    })();
+
+    $('loading').style.display = 'none';
+    $('fail').style.display = 'none';
+    $('board').style.display = 'grid';
+  }
+
+  fetch('/api/metrics')
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then((d) => { DATA = d; draw(); })
+    .catch(() => {
+      $('loading').style.display = 'none';
+      $('fail').style.display = 'block';
+    });
+
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+</script>
+</body>
+</html>
