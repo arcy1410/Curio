@@ -261,11 +261,21 @@ per-card keep-rate as a quality proxy plus a sampled human read.
 
 ## 7. If asked to show it live
 
-PostHog project → the events are flowing now. Five insights make the Demo Day
-dashboard, in this order:
+**Built, 8 Aug — the dashboard exists and computes on live data:**
+https://us.posthog.com/project/523396/dashboard/1972439
 
-1. Funnel: onboarding → first card → reveal → save → gate → sign-in
-2. Retention: weekly cohorts on `app_opened`
-3. Trend: `card_swiped` broken down by `action` (interested/pass/save ratio)
-4. Distribution: `session_ended.duration_s` — the guardrail, watched flat
-5. Trend: `review_completed` + `kept_card_opened` — the North Star numerator
+Nine tiles: activation funnel · the intro-screen leak (the root-cause
+exhibit) · day-over-day cohort retention · North Star trend · WAU · keep
+rate · swipe mix · median real-session guardrail (≥30s stints only) · gate
+conversion. That covers all three course requirements — funnel, cohort
+retention, root-cause — on live numbers.
+
+Two reading notes before presenting:
+
+- **Weekly gate conversion can exceed 100%** in a sparse week — someone can
+  sign in during a different week than the wall was first shown, and early
+  sign-ins predate the gate entirely. Quote the pilot-wide unique-person
+  figure (7 of 23, 30%), not a single week's ratio.
+- The guardrail tile already filters out sub-30-second stints; it's safe to
+  read as-is (median real session 56–226s across pilot weeks, well under
+  the 6-minute ceiling).
