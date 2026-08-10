@@ -10,6 +10,23 @@ guides the build; the Product Specification is maintained separately in
 Requirements · Error Scenarios · Telemetry · Acceptance Criteria · NFRs ·
 Prioritization). Build proceeds in §9's WSJF order.
 
+**Changelog — 2026-08-10 (post-pilot-feedback build):**
+- **R12 added — exhaustion refill:** the deck running dry now generates 10
+  personalized cards on demand (background, progress chip, notification),
+  with a recall quiz and Discover as the detours while it runs. E3 revised
+  to match; AC9 added.
+- **R13 added — first-swipe guide:** skippable one-screen primer on a
+  person's very first feed (field report: Krittika, 10 Aug).
+- **R9 hardened:** the swipe-action gate is enforced at the save choke
+  point, closing the tester-found bypass via the detail sheet and Discover
+  (Krittika, 10 Aug); the dismissed wall re-raises on the next swipe-action
+  and a persistent banner offers the way back (Yashvi, 8 Aug). AC4 extended.
+- **Telemetry:** `feed_refill_*`, `recall_quiz_*` (measured retention —
+  North-Star-adjacent), `guide_*`; `signup_gate_shown` now carries
+  `{source, reopened}`.
+- **Metrics dashboard** (see METRICS.md): live page is single-theme light
+  and retries its fetch through cold starts before declaring failure.
+
 ---
 
 ## 1. Goals
@@ -597,6 +614,24 @@ authenticated the gate never reappears. G1 is preserved (first card and
 first 3 swipes need no account); G4's cross-device caveat is **resolved**
 for signed-in users.
 
+**Enforced at the choke point (added 2026-08-10, field-found).** "A save is
+a swipe-action" has to hold on **every surface**, so the check lives in the
+one save function all surfaces call — not in the feed's buttons. The first
+shipped version checked only the feed, and the first tester to hit the wall
+(Krittika, 10 Aug) found the bypass within minutes: the detail sheet's two
+Keep buttons and Discover's save still worked while gated. Now any new save
+while gated raises the wall and records nothing; **unsaving stays allowed**
+(removing something you built is not the action being gated). Each block is
+tagged with its surface (`signup_gate_shown {source: save_detail |
+save_discovery | ...}`) — which doubles as data on where save-intent lives.
+
+**The dismissed wall re-raises (clarified 2026-08-08, field-found).** The
+first shipped version downgraded a dismissed wall to a passive toast, which
+the first tester to hit it (Yashvi) experienced as a dead end. Dismissing
+says "not now"; *swiping again* is the user asking to continue, and the
+wall re-raises on that ask — plus a persistent banner above the deck offers
+the way back at any time. The wall stays dismissable, so this never loops.
+
 **Output:** `signup_gate_shown {swipe_count: 3}`, `signup_completed` /
 `signin_completed`, `signup_abandoned` (wall dismissed → read-only).
 PostHog `identify()` links the anonymous `distinct_id` to the account —
@@ -655,6 +690,81 @@ the MVP is a web app, and iOS Safari requires home-screen install for web
 push — most of the target audience couldn't receive them. Revisit alongside
 any future PWA/native decision. R6's "no reply notifications" scope line
 stands for this release.
+
+### R12 — Exhaustion refill *(added 2026-08-10)*
+
+**Why it exists:** G2's simulation said exhaustion was the pilot's real
+failure mode, and filling the library to 60 only postponed it. The end of
+the deck is also the single moment a user is most explicitly asking for
+more — so it is the one place where user-triggered generation is justified.
+
+**Trigger:** the feed's exhaustion check fires (deck empty, everything in
+the pool seen). Never re-fires while a batch is running or freshly done.
+
+**The system must:** (1) start a background batch of **10 cards**, each
+card's topic **sampled from the user's own tuning distribution** — the
+refill leans the way their feed leans; (2) generate **one card per
+request** (`/api/refill`): find a fresh source (per-candidate dedupe
+against the store — a refill on a picked-over library must walk past what
+already exists), then generate → verify → store through the **same
+generator/verifier pair and the same fail-closed rule as R10** — a user
+asking for cards does not lower the bar; (3) show progress in a **topbar
+chip visible from every tab** ("writing 3/10" — the request count *is* the
+progress, no polling); (4) meanwhile, the caught-up screen offers two
+detours: a **recall quiz** over cards actually seen (guess → reveal →
+self-grade; `recall_quiz_*` — **measured retention**, the North Star's own
+mechanism) and a jump to **Discover**; (5) release the batch **whole** —
+cards trickling in would yank the caught-up screen out from under the user
+— with an in-app notification ("✨ N fresh cards in your feed") and the
+deck dealing back in automatically.
+
+**Business rules:** R2 is intact — generation is still never in the
+*serving* path; the feed renders its empty state (or the quiz) while the
+batch runs, and only verified rows enter the deck. The endpoint requires a
+Supabase JWT (every real client has one by exhaustion; a drive-by curl
+does not) and is cost-capped twice: globally (30 generated cards/hour,
+any trigger) and per user (15/hour, via `pipeline_runs.requested_by`,
+migration 006). Closing the tab stops the spend mid-batch. Two requests in
+flight, not ten and not one (~80s/card measured; serial would be ~13
+minutes — too slow for "while you take the quiz").
+
+**Output:** `feed_refill_started {requested}` · `feed_refill_completed
+{requested, delivered, skipped, failed, duration_s}` · `recall_quiz_started
+{card_count}` · `recall_quiz_graded {card_id, topic, remembered}` ·
+`recall_quiz_completed {card_count, remembered_count}`. Server-side: one
+`pipeline_runs` row per card (`trigger: 'user'`), same operational
+telemetry as R10.
+
+**Exceptions:** no fresh source for a topic → skip, move on (a normal
+outcome, not an error); a card failing verification → discarded, batch
+continues (`delivered` is honest: "7 fresh cards" if 3 died); **3
+consecutive request failures** → batch aborts, chip and caught-up copy say
+so plainly ("New cards couldn't be written just now — we'll try again next
+time"), and the next exhaustion retries. Store unreachable (seed mode) →
+no generation promise is made at all; the quiz and Discover detours still
+offer themselves.
+
+### R13 — First-swipe guide *(added 2026-08-10)*
+
+**Why it exists:** the first tester to onboard cold (Krittika, 10 Aug)
+landed on the deck and "got confused ki karna kya hai." The feed's four
+controls + stamp + daily-set meter arrive all at once; one calm screen
+naming the three moves is cheaper than a confused first minute.
+
+**Trigger:** first feed render for a person with **zero history** (no
+swipes, nothing seen) who hasn't dismissed it. The history check — not
+just the flag — is the gate, so no existing user (including one restored
+from the server on a new device) ever sees it.
+
+**The system must:** show one dismissable card — the three moves (Like /
+Later / Keep), one line on fact-checking and the source link, one CTA.
+**Not a tour**: no steps, no spotlights, no "next" chain (the R8 lesson —
+interruptions must earn their keep). Tap anywhere dismisses; it never
+returns.
+
+**Output:** `guide_shown` · `guide_dismissed {method: button | backdrop,
+open_ms}` — `open_ms` answers whether people read it or swat it away, i.e.
+whether it earned its interruption.
 
 ## 5. Error Scenarios
 
@@ -724,41 +834,43 @@ distinguishes a rare blip from a systemic problem.
 confirms otherwise — the worst case is "slower sync," never "silent data
 loss."
 
-### E3 — Pipeline stalls and a returning user hits "caught up" expecting fresh content
+### E3 — Generation can't refill an exhausted feed *(revised 2026-08-10 for R12)*
 
-**What failed:** the R10 pipeline stops producing new verified cards for a
-stretch (Guardian/verification down, or a topic's cards keep failing Haiku
-until retries exhaust) — the store stops growing while users keep consuming
-from it.
+**What failed:** a user exhausts the deck and the R12 refill can't deliver
+— the generation API is down, rate caps are hit, verification keeps
+rejecting, or every candidate source already exists in the store. (The
+original E3 — a stalled R10 pipeline leaving the store stale — is now the
+*background* version of the same failure; R12 made exhaustion the moment
+generation is asked for directly, so this is where the failure surfaces.)
 
-**How it's recognized:** the feed's exhaustion check (R2) fires as normal,
-but the system distinguishes **two different reasons** for hitting empty:
-"you've read everything that exists" vs. "the store hasn't grown in N
-hours" — these must not share the same message.
+**How it's recognized:** the client batch aborts after 3 consecutive
+request failures, or completes with `delivered: 0`.
 
 **State preserved:** R2's existing rule, unchanged — replay clears `seen`,
-preserves scores and Kept.
+preserves scores and Kept. A partially delivered batch keeps its survivors:
+"7 fresh cards" is honest, not padded.
 
-**What the user sees:** if content genuinely hasn't arrived recently, the
-caught-up screen says so honestly — *"You're caught up — new fact-checked
-cards land daily, check back soon"* — never dressing up a stalled pipeline
-as "you're just really well-read." Directly protects **G4**: a user who
-returns on day 2 to stale re-served content learns fast that returning
-isn't rewarded.
+**What the user sees:** the caught-up screen says so plainly — *"New cards
+couldn't be written just now — we'll try again next time"* — never dressing
+a generation failure up as "you're just really well-read." The chip reads
+"no new cards yet." The recall quiz and Discover detours still offer
+themselves; the failure costs the user a promise, not the session.
 
-**What they can do next:** *Swipe again* still works (re-serves from the
-existing library, per R2) — staleness is disappointing, not broken; the app
-never dead-ends.
+**What they can do next:** take the quiz, browse Discover, or *Swipe
+again* (re-serves the existing library, per R2) — disappointing, not
+broken; the app never dead-ends. The next exhaustion retries the batch
+automatically.
 
-**Logged:** `feed_exhausted {cards_seen, hours_since_last_new_card}` — that
-last field turns a UI event into an operational alarm, read alongside R10's
-own pipeline-run telemetry (generated/passed/discarded counts). This event
-is the **user-impact proof** that an operational problem has become a
-product problem.
+**Logged:** `feed_exhausted {cards_seen}` ·
+`feed_refill_completed {requested, delivered: 0, failed}` — read alongside
+the server's `pipeline_runs` rows (every user-triggered card is one row,
+`trigger: 'user'`), which say *why*: no fresh source, verification
+discards, or hard errors. The client event is the **user-impact proof**
+that an operational problem has become a product problem.
 
-**Recovery guarantee:** none available client-side — the actual fix is
-operational (R10 pipeline health), not client-side; getting the wording
-honest is the only thing in this scenario's control.
+**Recovery guarantee:** retry is built in (next exhaustion re-fires the
+batch); the deeper fix is operational (provider health, rate caps, seed
+freshness) — R10's telemetry is where that shows up.
 
 ### E4 — Discover's viewport "seen" marking must not falsely burn scarce content
 
@@ -810,6 +922,8 @@ free-form user text ever sent.
 | `comment_posted` | getting a comment through the filter |
 | `discovery_card_read {card_id, dwell_ms}` | actually reading (30s dwell, R5/E4) |
 | `card_saved {source, kept_count}` | finding something worth keeping |
+| `recall_quiz_completed {card_count, remembered_count}` | **retaining what was read** (R12) — self-graded recall is the closest event the product has to the North Star's "retained" |
+| `feed_refill_completed {delivered > 0}` | the product replenishing itself on demand (R12) |
 
 ### Behavioural — what did the customer do?
 
@@ -821,7 +935,11 @@ free-form user text ever sent.
 `tab_changed` · `paywall_viewed` · `paywall_clicked {feature}` ·
 `interests_edit_started` · `interests_updated {added, removed}` ·
 `feed_replayed` · `migration_notice_shown` / `_dismissed` ·
-`signup_gate_shown {swipe_count}` · `signup_abandoned`
+`signup_gate_shown {swipe_count, source, reopened}` (source names the
+blocked surface: swipe, banner, save_detail, save_discovery…) ·
+`signup_abandoned` · `feed_refill_started {requested}` ·
+`recall_quiz_started {card_count}` · `recall_quiz_graded {card_id, topic,
+remembered}` · `guide_shown` · `guide_dismissed {method, open_ms}`
 
 ### Quality — did the system perform correctly?
 
@@ -894,6 +1012,13 @@ of §4–5 — the places where a precise test matters most.
 - Given the wall is shown, **when** the user dismisses it without signing
   up, **then** they can still read the current card, browse Discover, and
   open their Kept pile — but any further swipe/save re-raises the wall.
+- Given a gated user on **any** surface — the detail sheet's Keep pill,
+  its "Keep and continue", Discover's save — **when** they attempt a save,
+  **then** nothing is saved, no score changes, and the wall raises above
+  the current sheet with `signup_gate_shown {source: save_<surface>}`.
+  *(Added 2026-08-10 — this exact bypass shipped and a tester found it.)*
+- Given a gated user with a saved card, **when** they unsave it, **then**
+  the unsave succeeds — removal is never gated.
 
 ### AC5 — Merge preserves everything
 
@@ -929,6 +1054,22 @@ of §4–5 — the places where a precise test matters most.
   least one Bollywood card is served within the next 3 feed draws.
 - Given a fresh-ish user whose top score is 2, **when** they add a topic,
   **then** it gets the +4 head-start (the higher of the two rules).
+
+### AC9 — Exhaustion refill *(added 2026-08-10)*
+
+- Given an exhausted deck and a running refill, **when** the batch
+  completes with N > 0 verified cards, **then** the deck deals back in
+  without a reload, the notification names the honest N, and every
+  delivered card satisfies AC7 (verified, sourced) — the refill path has no
+  weaker gate than the batch pipeline.
+- Given a refill request whose card fails verification, **then** nothing is
+  stored, the batch continues, and `delivered` excludes it.
+- Given 3 consecutive request failures, **then** the batch aborts, the
+  caught-up screen says so plainly, and the next exhaustion retries.
+- Given a gated or signed-out-of-Supabase client (no JWT), **when**
+  `/api/refill` is called directly, **then** it returns 401 and generates
+  nothing — the endpoint cannot be used to drain the generation budget
+  anonymously.
 
 ## 8. Non-Functional Requirements
 
