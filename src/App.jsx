@@ -509,6 +509,17 @@ export default function App() {
   function toggleSave(card, source = 'unknown') {
     const already = state.kept.includes(card.id)
 
+    // R9: a save is a swipe-action, so the gate applies HERE, not just in the
+    // feed. Checking only in Feed.saveTop left every other surface open —
+    // the first tester to hit the wall (Krittika, 10 Aug) found that the
+    // detail sheet's Keep buttons still worked while gated. One choke point
+    // now: any NEW save while gated raises the wall instead. Unsaving stays
+    // allowed — removing something you built is not the action being gated.
+    if (!already && gated) {
+      hitGate(`save_${source}`)
+      return 'blocked'
+    }
+
     if (already) {
       setState((s) => ({ ...s, kept: s.kept.filter((id) => id !== card.id) }))
       setToast('Removed from Kept')
