@@ -33,6 +33,10 @@ Prioritization). Build proceeds in §9's WSJF order.
 - **R4 extended (same day, later):** a Keep from the detail sheet
   auto-swipes right like the feed's 🔖 — full swipe row, seen, daily-set
   credit, deck advances behind the sheet. AC2 extended.
+- **Bug fix (same day):** the feed's own Keep button recorded the save but
+  threw before advancing the deck (a stray call to state that never
+  existed), leaving the kept card on top — AC2's first bullet was shipped
+  broken. Field-reported; fixed and verified.
 
 ---
 

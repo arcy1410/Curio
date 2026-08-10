@@ -190,10 +190,10 @@ export default function Feed({
     if (result === 'saved') {
       haptic.success()
       fireBurst()
-      swiped.current.add(top.id) // already recorded by App — don't record again
-      setDragDir(null)
       // Same rule as trigger(): App already recorded the save, so mark it
-      // swiped, advance, and fling purely for looks.
+      // swiped, advance, and fling purely for looks. (A stray setDragDir()
+      // call — state that never existed — used to throw right here, so the
+      // save recorded but the card never advanced: "Keep isn't working".)
       swiped.current.add(top.id)
       markStamp(top.id, null)
       advance(top)
