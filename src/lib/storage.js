@@ -25,6 +25,7 @@ const DEFAULT_STATE = {
   reviewMeta: {}, // { cardId: { savedAt, reviewCount, lastReviewedAt } } — decay state
   revealed: [], // cardIds whose quiz answer was revealed (+1, once each)
   creditedCards: [], // cardIds that already spent their single +5 (deep read OR keep)
+  guideSeen: false, // first-swipe guide dismissed (App also skips it for anyone with history)
 }
 
 export function loadState() {

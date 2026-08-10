@@ -39,6 +39,7 @@ import {
 } from './lib/scoring.js'
 import { generateOneCard } from './lib/refill.js'
 import QuizMode from './components/QuizMode.jsx'
+import FirstRunGuide from './components/FirstRunGuide.jsx'
 import { haptic } from './lib/haptics.js'
 import { storedTheme, setTheme } from './lib/theme.js'
 import { markReviewed } from './lib/review.js'
@@ -726,6 +727,22 @@ export default function App() {
     setQuizCards(picked)
   }, [quizPool])
 
+  // ── First-swipe guide ───────────────────────────────────────
+  //
+  // The history check (no swipes, nothing seen) does the real gating: it
+  // keeps the guide away from every existing user whose stored state
+  // predates the guideSeen flag, without a migration. The flag then stops
+  // it from ever coming back — including after the deck is exhausted, when
+  // seen resets on replay.
+  const showGuide =
+    state.onboarded &&
+    !state.guideSeen &&
+    state.swipes.length === 0 &&
+    state.seen.length === 0 &&
+    tab === 'feed' &&
+    cardsReady
+  const dismissGuide = useCallback(() => setState((s) => ({ ...s, guideSeen: true })), [])
+
   // ── Replay (keep learned taste, reshuffle the deck) ─────────
   function replay() {
     track(EV.FEED_REPLAYED, { swipes_so_far: state.swipes.length })
@@ -987,6 +1004,8 @@ export default function App() {
           }}
         />
       )}
+
+      {showGuide && <FirstRunGuide onDone={dismissGuide} />}
 
       {quizCards && <QuizMode cards={quizCards} onClose={() => setQuizCards(null)} />}
 

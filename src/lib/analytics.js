@@ -153,6 +153,11 @@ export const EV = {
   // personalization transparency
   TUNING_METER_TOGGLED: 'tuning_meter_toggled',
 
+  // first-swipe guide (Krittika, 10 Aug: "when this page popped up I got
+  // confused ki karna kya hai" — a skippable primer on first feed load)
+  GUIDE_SHOWN: 'guide_shown',
+  GUIDE_DISMISSED: 'guide_dismissed', // {method: 'button'|'backdrop', open_ms}
+
   // discovery
   DISCOVERY_OPENED: 'discovery_opened',
   DISCOVERY_TOPIC_SELECTED: 'discovery_topic_selected',
