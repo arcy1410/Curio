@@ -461,13 +461,31 @@
     $('board').style.display = 'grid';
   }
 
-  fetch('/api/metrics')
-    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then((d) => { DATA = d; draw(); })
-    .catch(() => {
-      $('loading').style.display = 'none';
-      $('fail').style.display = 'block';
-    });
+  // Patient fetch. A cold serverless start runs eight PostHog queries and
+  // has been measured at ~18s, and a transient upstream error on an empty
+  // cache one-shots a 502 — neither should read as "the dashboard is broken"
+  // to someone who just opened the link. Three attempts with backoff, and
+  // the loading line says it's warming up rather than silently hanging.
+  (async () => {
+    const waits = [0, 3000, 6000];
+    for (let i = 0; i < waits.length; i++) {
+      if (waits[i]) {
+        $('loading').textContent = 'Warming up the metrics service…';
+        await new Promise((r) => setTimeout(r, waits[i]));
+      }
+      try {
+        const r = await fetch('/api/metrics');
+        if (!r.ok) throw new Error(r.status);
+        DATA = await r.json();
+        draw();
+        return;
+      } catch {
+        // fall through to the next attempt
+      }
+    }
+    $('loading').style.display = 'none';
+    $('fail').style.display = 'block';
+  })();
 
 </script>
 </body>
