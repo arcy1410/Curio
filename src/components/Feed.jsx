@@ -44,6 +44,7 @@ export default function Feed({
   quizAvailable = 0, // seen cards that carry a quiz question
   libraryVersion = 0, // bumps when App appends generated cards
   seenVersion = 0, // bumps on swipes AND drops to 0 on replay
+  isCardSeen = () => false, // deck cards can become seen from OUTSIDE (detail-sheet Keep)
 }) {
   const weekdayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long' })
   const [deck, setDeck] = useState([]) // deck[0] = top card
@@ -230,6 +231,23 @@ export default function Feed({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, deck.length])
+
+  // A Keep in the detail sheet auto-swipes right (R4, extended to the sheet
+  // 2026-08-10), but the sheet lives in App and the deck lives here — so the
+  // deck watches for its own cards turning `seen` without a swipe having
+  // been recorded locally, flings them right for looks, and advances.
+  // advance() is idempotent, so this can never double-deal.
+  useEffect(() => {
+    if (!ready) return
+    for (const c of deck) {
+      if (!isCardSeen(c.id) || swiped.current.has(c.id)) continue
+      swiped.current.add(c.id)
+      markStamp(c.id, null)
+      childRefs.current[c.id]?.current?.swipe('right')?.catch?.(() => {})
+      advance(c)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seenVersion, ready])
 
   // Refill an empty deck when the pool changes underneath it: generated cards
   // arriving (libraryVersion) or a replay clearing `seen` (seenVersion).

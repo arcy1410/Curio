@@ -664,8 +664,10 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 20px;
+  /* Tightened when the guess input moved in: label + input row + skip link
+     must all fit inside the panel's height or the skip clips away. */
+  gap: 10px;
+  padding: 14px 16px;
   text-align: center;
 }
 .answer-locked .mono {
@@ -2666,4 +2668,89 @@ button {
   .guide-backdrop {
     animation: none;
   }
+}
+
+/* ── Typed quiz guesses (card face + recall quiz) ────────────── */
+.guess-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.guess-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 15px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1.5px solid var(--line-strong);
+  border-radius: 12px;
+  outline: none;
+}
+.guess-input:focus {
+  border-color: var(--ink-2);
+}
+.guess-input::placeholder {
+  color: var(--ink-3);
+}
+.guess-check {
+  flex: none;
+  padding: 0 18px;
+  height: 44px;
+}
+.guess-check:disabled {
+  opacity: 0.45;
+}
+.guess-skip {
+  background: none;
+  border: none;
+  align-self: center;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-3);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 8px 6px 2px;
+}
+.verdict-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+}
+.verdict-chip.right {
+  color: var(--good, #5e7a34);
+  background: rgba(94, 122, 52, 0.14);
+}
+.verdict-chip.wrong {
+  color: var(--pass, #a04b3c);
+  background: rgba(160, 75, 60, 0.12);
+}
+.verdict-guess {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.8;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The locked panel was shrink-to-fit around a single button; with the
+   guess row inside it has to claim the panel's full width or the Check
+   button clips off the panel's edge. */
+.answer-locked {
+  width: 100%;
+}
+.answer-locked .guess-row {
+  margin-top: 2px;
+}
+.answer-locked .guess-skip {
+  margin-top: 0;
 }

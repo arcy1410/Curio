@@ -1,27 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { topicName, topicColor } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
+import { guessMatches } from '../lib/answerMatch.js'
 
 /**
  * Recall quiz — offered when the feed runs dry, while fresh cards generate.
  *
- * The mechanic is guess-first, same as the card face: question → the user
- * commits to an answer in their head → reveal → they grade THEMSELVES. Self-
- * grading is deliberate. Free-text answers would need marking (an LLM call in
- * the serving path — R2 says no) and multiple choice tests recognition, not
- * recall. An honest "did you know it?" is the cheapest honest signal, and it
- * is measured retention — the thing the North Star claims and almost nothing
- * else in the app can observe directly.
+ * The mechanic is type-first: the user writes their answer, the matcher
+ * judges it (client-side token match — answerMatch.js explains why it's not
+ * an LLM), and only then does the real answer appear. Typing is a stronger
+ * retrieval rep than answering in your head, and the verdict makes the
+ * result measurable — recall_quiz_graded {remembered} is the closest thing
+ * the product has to observing the North Star's "retained" directly.
  *
- * Nothing here scores the feed or touches reviewMeta: seen ≠ kept, and a quiz
- * on a passed card saying "you remembered it" should not retroactively tune
- * the feed toward a topic the user swiped away.
+ * The matcher is generous but fallible, so a wrong verdict can be overruled
+ * ("count it") — a fuzzy grader that quietly deflates people's scores would
+ * poison both the experience and the metric.
+ *
+ * Nothing here scores the feed or touches reviewMeta: seen ≠ kept, and a
+ * quiz on a passed card saying "you remembered it" should not retroactively
+ * tune the feed toward a topic the user swiped away.
  */
 export default function QuizMode({ cards, onClose }) {
   const [idx, setIdx] = useState(0)
-  const [revealed, setRevealed] = useState(false)
+  const [guess, setGuess] = useState('')
+  const [verdict, setVerdict] = useState(null) // null | 'right' | 'wrong' | 'shown'
   const [remembered, setRemembered] = useState(0)
+  const inputRef = useRef(null)
   const done = idx >= cards.length
   const card = cards[idx]
 
@@ -30,20 +36,36 @@ export default function QuizMode({ cards, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function grade(gotIt) {
-    if (gotIt) haptic.success()
-    else haptic.tap()
+  useEffect(() => {
+    // Fresh question: clear the field and put the cursor back in it.
+    setGuess('')
+    setVerdict(null)
+    inputRef.current?.focus()
+  }, [idx])
+
+  function submitGuess() {
+    const g = guess.trim()
+    if (!g || verdict) return
+    const matched = guessMatches(g, card.quiz_answer, card.quiz_question)
+    setVerdict(matched ? 'right' : 'wrong')
+    if (matched) haptic.success()
+    else haptic.error()
+  }
+
+  // Advance, recording how this card resolved. `method` distinguishes the
+  // matcher's own verdict from a user override of it.
+  function next(gotIt, method) {
     track(EV.RECALL_QUIZ_GRADED, {
       card_id: card.id,
       topic: card.topic,
       remembered: gotIt,
+      method,
     })
     const nextRemembered = remembered + (gotIt ? 1 : 0)
     setRemembered(nextRemembered)
-    setRevealed(false)
-    const next = idx + 1
-    setIdx(next)
-    if (next >= cards.length) {
+    const n = idx + 1
+    setIdx(n)
+    if (n >= cards.length) {
       track(EV.RECALL_QUIZ_COMPLETED, {
         card_count: cards.length,
         remembered_count: nextRemembered,
@@ -89,30 +111,66 @@ export default function QuizMode({ cards, onClose }) {
               <div className="mono quiz-kicker">From a card you read</div>
               <h2 className="quiz-q">{card.quiz_question}</h2>
 
-              {revealed ? (
+              {verdict ? (
                 <>
+                  {verdict !== 'shown' && (
+                    <div className={`verdict-chip ${verdict === 'right' ? 'right' : 'wrong'}`}>
+                      {verdict === 'right' ? '✓ You had it' : '✗ Not quite'}
+                      {guess.trim() && <span className="verdict-guess">“{guess.trim()}”</span>}
+                    </div>
+                  )}
                   <div className="quiz-answer">{card.quiz_answer}</div>
-                  <div className="mono quiz-prompt">Did you have it?</div>
-                  <div className="quiz-grade">
-                    <button className="btn-ghost" onClick={() => grade(false)}>
-                      Not quite
+                  {verdict === 'wrong' && (
+                    <button
+                      className="guess-skip mono"
+                      onClick={() => {
+                        haptic.success()
+                        next(true, 'override')
+                      }}
+                    >
+                      I actually had it — count it
                     </button>
-                    <button className="btn-primary" onClick={() => grade(true)}>
-                      Got it
+                  )}
+                  <div className="quiz-grade">
+                    <button
+                      className="btn-primary"
+                      onClick={() =>
+                        verdict === 'shown' ? next(false, 'skipped') : next(verdict === 'right', 'auto')
+                      }
+                    >
+                      Next
                     </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="mono quiz-prompt">Answer in your head first — that&apos;s the rep.</div>
+                  <div className="mono quiz-prompt">Type it — writing is the rep that makes it stick.</div>
+                  <div className="guess-row">
+                    <input
+                      ref={inputRef}
+                      className="guess-input"
+                      type="text"
+                      enterKeyHint="go"
+                      placeholder="Your answer…"
+                      value={guess}
+                      maxLength={80}
+                      onChange={(e) => setGuess(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitGuess()
+                      }}
+                    />
+                    <button className="btn-primary guess-check" disabled={!guess.trim()} onClick={submitGuess}>
+                      Check
+                    </button>
+                  </div>
                   <button
-                    className="btn-primary quiz-reveal"
+                    className="guess-skip mono"
                     onClick={() => {
-                      haptic.open()
-                      setRevealed(true)
+                      haptic.tap()
+                      setVerdict('shown')
                     }}
                   >
-                    Reveal
+                    just show me →
                   </button>
                 </>
               )}

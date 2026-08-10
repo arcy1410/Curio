@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { topicName, topicColor } from '../data/topics.js'
 import { haptic } from '../lib/haptics.js'
 import { track, EV } from '../lib/analytics.js'
+import { guessMatches } from '../lib/answerMatch.js'
 
 function hostOf(url) {
   try {
@@ -32,22 +33,38 @@ export default function Card({
 }) {
   const hasQuiz = Boolean(card.quiz_question && card.quiz_answer)
   const [revealed, setRevealed] = useState(false)
+  const [guess, setGuess] = useState('')
+  const [verdict, setVerdict] = useState(null) // null | 'right' | 'wrong' — null = revealed without guessing
   const tapStart = useRef(null) // distinguishes a tap on the answer from a scroll
 
   // Reset per card — otherwise the next card arrives pre-revealed and the
   // reader never gets the guess, which is the entire mechanic.
   useEffect(() => {
     setRevealed(false)
+    setGuess('')
+    setVerdict(null)
   }, [card.id])
 
   const topicLabel = `${topicName(card.topic)}${card.subtopic ? ` · ${card.subtopic}` : ''}`
 
-  function reveal() {
+  function reveal(method, matched = null) {
     if (revealed) return
-    haptic.tap()
     setRevealed(true)
-    track(EV.QUIZ_REVEALED, { card_id: card.id, topic: card.topic })
+    track(EV.QUIZ_REVEALED, { card_id: card.id, topic: card.topic, method, matched })
     onReveal?.(card) // +1: the guess was attempted
+  }
+
+  // The typed path: judge the guess (client-side token match — see
+  // answerMatch.js for why it's not an LLM), stamp the verdict, then show
+  // the real answer so the matcher never gets the last word.
+  function submitGuess() {
+    const g = guess.trim()
+    if (!g || revealed) return
+    const matched = guessMatches(g, card.quiz_answer, card.quiz_question)
+    setVerdict(matched ? 'right' : 'wrong')
+    if (matched) haptic.success()
+    else haptic.error()
+    reveal('typed', matched)
   }
 
   const footer = (
@@ -174,6 +191,12 @@ export default function Card({
           >
             {revealed ? (
               <div className="answer-inner">
+                {verdict && (
+                  <div className={`verdict-chip ${verdict}`}>
+                    {verdict === 'right' ? '✓ You had it' : '✗ Not quite'}
+                    {guess.trim() && <span className="verdict-guess">“{guess.trim()}”</span>}
+                  </div>
+                )}
                 {card.stat && (
                   <div className="stat-row">
                     <span className="stat">{card.stat}</span>
@@ -184,29 +207,67 @@ export default function Card({
               </div>
             ) : (
               <div className="answer-locked">
-                <span className="mono">Commit to a guess first</span>
-                {/* onPointerDown, not onClick.
-                    react-tinder-card owns the card's pointer/touch handlers to
-                    drive the drag, and on a TOUCH device it swallows the tap
-                    before a click event is ever synthesised — so this button
-                    worked with a mouse and did nothing on a phone, which is
-                    the only device that matters here. Acting on pointerdown
-                    and stopping propagation gets in before the drag logic. */}
+                <span className="mono">Type your guess</span>
+                {/* Every handler here stops pointerdown propagation and, for
+                    the buttons, prevents default — react-tinder-card owns the
+                    card's pointer/touch handlers natively, so anything less
+                    and a tap starts a drag instead (the hard-won rule from the
+                    original Reveal button). The INPUT is the one element that
+                    must NOT preventDefault (it would block focus), so it stops
+                    propagation and focuses itself explicitly inside the same
+                    gesture — which is also what makes the phone keyboard open. */}
+                <div className="guess-row">
+                  <input
+                    className="guess-input"
+                    type="text"
+                    inputMode="text"
+                    enterKeyHint="go"
+                    placeholder="Your answer…"
+                    value={guess}
+                    maxLength={80}
+                    onChange={(e) => setGuess(e.target.value)}
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                      e.currentTarget.focus()
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (e.key === 'Enter') submitGuess()
+                    }}
+                  />
+                  <button
+                    className="reveal-btn guess-check"
+                    disabled={!guess.trim()}
+                    onPointerDown={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      submitGuess()
+                    }}
+                    onClick={(e) => {
+                      // Keyboard/assistive activation still routes through
+                      // click; submitGuess() is idempotent via `revealed`.
+                      e.stopPropagation()
+                      submitGuess()
+                    }}
+                  >
+                    Check
+                  </button>
+                </div>
                 <button
-                  className="reveal-btn"
+                  className="guess-skip mono"
                   onPointerDown={(e) => {
                     e.stopPropagation()
                     e.preventDefault()
-                    reveal()
+                    haptic.tap()
+                    reveal('skip')
                   }}
                   onClick={(e) => {
-                    // Keyboard/assistive activation still routes through click;
-                    // reveal() is idempotent so a double-fire is harmless.
                     e.stopPropagation()
-                    reveal()
+                    haptic.tap()
+                    reveal('skip')
                   }}
                 >
-                  Reveal the answer
+                  just show me →
                 </button>
               </div>
             )}

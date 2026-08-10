@@ -569,8 +569,15 @@ export default function App() {
     scoresRef.current = nextScores
 
     const newCount = state.kept.length + 1
-    if (source === 'feed') {
-      // Feed save auto-swipes right: record it as a swipe too, and mark seen.
+    // A deliberate Keep auto-swipes right — from the feed OR the detail
+    // sheet (extended 2026-08-10 by request: "when keep is clicked,
+    // automatically right swipe it"). The sheet opens over the top feed
+    // card; keeping it and then having to swipe the same card again read
+    // as the save not working. Discover/Kept saves still don't touch the
+    // deck — there's no deck under them.
+    const swipesDeck = source === 'feed' || source === 'detail'
+    if (swipesDeck) {
+      // Auto-swipe right: record it as a swipe too, and mark seen.
       seenRef.current = new Set(seenRef.current).add(card.id)
       setState((s) => ({
         ...s,
@@ -611,10 +618,10 @@ export default function App() {
 
     syncSave({ cardId: card.id, saved: true })
     syncScores(nextScores)
-    if (source === 'feed') countTowardToday() // a feed save IS a swipe-action (R4)
-    // A feed save auto-swipes right (R4), so it is a swipe row too — without
-    // this the Kept pile and the swipe history would disagree about the card.
-    if (source === 'feed') syncSwipe({ cardId: card.id, action: 'interested', surface: 'feed' })
+    if (swipesDeck) countTowardToday() // a deliberate save IS a swipe-action (R4)
+    // The auto-swipe (R4) is a swipe row too — without this the Kept pile
+    // and the swipe history would disagree about the card.
+    if (swipesDeck) syncSwipe({ cardId: card.id, action: 'interested', surface: source })
     return 'saved'
   }
 
@@ -885,6 +892,7 @@ export default function App() {
             quizAvailable={quizPool.length}
             libraryVersion={cards.length}
             seenVersion={state.seen.length}
+            isCardSeen={(id) => seenRef.current.has(id)}
           />
         )}
         {tab === 'discover' && (

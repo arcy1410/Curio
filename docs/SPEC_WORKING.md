@@ -26,6 +26,13 @@ Prioritization). Build proceeds in §9's WSJF order.
   `{source, reopened}`.
 - **Metrics dashboard** (see METRICS.md): live page is single-theme light
   and retries its fetch through cold starts before declaring failure.
+- **Typed quiz guesses (same day, later):** the card quiz and the recall
+  quiz both take a written answer, judge it client-side (answerMatch.js —
+  no LLM in the serving path), then reveal; "just show me" skip kept. R2's
+  card-treatment section and R12 amended; telemetry extended.
+- **R4 extended (same day, later):** a Keep from the detail sheet
+  auto-swipes right like the feed's 🔖 — full swipe row, seen, daily-set
+  credit, deck advances behind the sheet. AC2 extended.
 
 ---
 
@@ -394,6 +401,15 @@ plain +3; the costlier, more deliberate signal), recorded as `card_swiped
 **+3** (no deck to advance). **Unsave** from Kept or Discover rows; frees a
 cap slot but does not retract scores (signals are historical).
 
+**Extended 2026-08-10 — the detail sheet's Keep auto-swipes too.** The
+sheet opens over the feed's top card; keeping it and then closing onto the
+same card, which you must now swipe manually, read as the save not having
+worked. A Keep from the sheet is the same deliberate act as the feed's 🔖,
+so it gets the full behaviour: Kept + swipe row + `seen` + daily-set
+credit, and the deck flings the card and deals the next one behind the
+sheet. Discover and Kept-pile saves still don't touch the deck — there is
+no deck under them.
+
 **Business rules:** Kept modified only by explicit Save/Unsave; one entry
 per card; most-recent first. R3's rule holds one-directionally: a plain
 swipe never saves, but a save always swipes. **Free tier caps at 20 saved
@@ -453,6 +469,21 @@ in the feed (G3 applies everywhere). **Build status:** the 30s
 viewport-dwell seen-marking (pausing on background, biased toward
 under-marking per E4) and the surface-dependent save weight are new work
 items. Known constraint (G5): several subtopics currently hold 1 card.
+
+**Card quiz, 2026-08-10 — the guess is typed, then judged.** "Commit to a
+guess first" used to be an honor system (a Reveal button). Now the card
+asks for the guess in writing: an input + **Check**, a verdict chip ("✓ You
+had it" / "✗ Not quite" with the guess echoed), and only then the answer.
+Judging is a **client-side token matcher** (`answerMatch.js`) — deliberately
+not an LLM (R2: nothing in the serving path waits on a model; a guess-check
+must be instant and free). The matcher discounts words the question itself
+contains, judges by numbers when the guess has one (number words and
+lakh/crore normalize; grouped digits like "73,000" collapse — a live-found
+bug), and prefix-matches content words otherwise. It is generous and
+fallible by design, which is why the real answer always follows the
+verdict. A **"just show me"** skip preserves the old path — typing is
+invited, never forced. `quiz_revealed` now carries `{method: typed | skip,
+matched}`.
 
 **Card, 2026-07 — two destinations, no overlap.**
 
@@ -711,9 +742,10 @@ generator/verifier pair and the same fail-closed rule as R10** — a user
 asking for cards does not lower the bar; (3) show progress in a **topbar
 chip visible from every tab** ("writing 3/10" — the request count *is* the
 progress, no polling); (4) meanwhile, the caught-up screen offers two
-detours: a **recall quiz** over cards actually seen (guess → reveal →
-self-grade; `recall_quiz_*` — **measured retention**, the North Star's own
-mechanism) and a jump to **Discover**; (5) release the batch **whole** —
+detours: a **recall quiz** over cards actually seen (type the answer → the
+matcher judges it → the real answer, with a "count it" override when the
+fuzzy verdict wrongs a correct guess; `recall_quiz_*` — **measured
+retention**, the North Star's own mechanism) and a jump to **Discover**; (5) release the batch **whole** —
 cards trickling in would yank the caught-up screen out from under the user
 — with an in-app notification ("✨ N fresh cards in your feed") and the
 deck dealing back in automatically.
@@ -939,7 +971,9 @@ free-form user text ever sent.
 blocked surface: swipe, banner, save_detail, save_discovery…) ·
 `signup_abandoned` · `feed_refill_started {requested}` ·
 `recall_quiz_started {card_count}` · `recall_quiz_graded {card_id, topic,
-remembered}` · `guide_shown` · `guide_dismissed {method, open_ms}`
+remembered, method: auto | override | skipped}` · `guide_shown` ·
+`guide_dismissed {method, open_ms}` · `quiz_revealed {method: typed | skip,
+matched}`
 
 ### Quality — did the system perform correctly?
 
@@ -993,6 +1027,12 @@ of §4–5 — the places where a precise test matters most.
   action: the card is in Kept, the deck advances to the next card, and both
   `card_saved` and `card_swiped {action: interested, method: save}` are
   recorded — and the swipe is not double-counted if the animation stalls.
+- Given the detail sheet open over the feed's top card, **when** the user
+  taps Keep (pill or "Keep and continue"), **then** the same holds: Kept,
+  swipe row, `seen`, daily-set credit, and the deck has advanced behind the
+  sheet — closing it never lands on the already-kept card. *(Added
+  2026-08-10.)*
+- Given a Discover or Kept-pile save, **then** the deck is untouched.
 
 ### AC3 — The 20-save cap
 
