@@ -146,7 +146,7 @@
     </div>
     <h1 class="title">Product metrics — the pilot cohort, read honestly</h1>
     <p class="sub">
-      Every number on this page is queried from production events when you load it.
+      Every number on this page is queried from production events when you load it, over a rolling three-week window ending today.
       The cohort is small and mostly classmates, so these are baselines being set,
       not traction being claimed.
     </p>
@@ -302,9 +302,11 @@
     $('sessPill').textContent = worstMed <= 360 ? '✓ holding' : '⚠ rising';
     $('sessPill').className = 'pill ' + (worstMed <= 360 ? 'good' : 'flag');
 
+    // Rolling weeks anchored on today (today = last day of the newest week),
+    // so labels are ranges, not "week commencing" calendar dates.
     const wkLabel = (w) => {
-      const dt = new Date(w.week);
-      return dt.toLocaleDateString([], { day: 'numeric', month: 'short' });
+      const f = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
+      return w.weekEnd ? `${f(w.week)}–${f(w.weekEnd)}` : f(new Date(w.week));
     };
 
     // weekly line
@@ -326,7 +328,7 @@
       vals.forEach((v, i) => {
         const last = i === vals.length - 1;
         const dot = S('circle', { cx: x(i), cy: y(v), r: last ? 5 : 4, fill: last ? teal : surface, stroke: teal, 'stroke-width': 2 });
-        dot.dataset.tip = `w/c ${labels[i]}: ${Math.round(v)}s median`;
+        dot.dataset.tip = `${labels[i]}: ${Math.round(v)}s median`;
         svg.append(dot);
         const tl = S('text', { x: x(i), y: H - 6, 'font-size': 10, fill: ink3, 'text-anchor': i === 0 ? 'start' : last ? 'end' : 'middle' });
         tl.textContent = labels[i];
@@ -444,7 +446,7 @@
       d.weekly.forEach((w, i) => {
         const x = x0 + i * (bw + gap), h = ((H - 40) * w.wau) / max, y = H - 26 - h;
         const bar = S('rect', { x, y, width: bw, height: Math.max(2, h), rx: 4, fill: teal });
-        bar.dataset.tip = `w/c ${wkLabel(w)}: ${w.wau} weekly actives`;
+        bar.dataset.tip = `${wkLabel(w)}: ${w.wau} weekly actives`;
         svg.append(bar);
         const tv = S('text', { x: x + bw / 2, y: y - 6, 'font-size': 13, fill: css('--ink'), 'text-anchor': 'middle' });
         tv.textContent = w.wau;

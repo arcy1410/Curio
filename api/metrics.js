@@ -40,6 +40,16 @@ export default async function handler(req, res) {
     return res.status(200).json(cache.body)
   }
 
+  // Rolling three-week window, anchored on TODAY as the last day of the
+  // current week (decision 2026-08-11). "Week" here is not a calendar week:
+  //   week 3 = today-6 … today · week 2 = today-13 … today-7 ·
+  //   week 1 = today-20 … today-14.
+  // Everything on the page — funnel, totals, mix, retention, North Star —
+  // counts ONLY these 21 days; older events are out of every number.
+  const IN_WINDOW = `toDate(timestamp) >= today() - 20`
+  // 0 = the week ending today, 1 = the one before, 2 = the oldest kept.
+  const WEEK_AGO = `intDiv(dateDiff('day', toDate(timestamp), today()), 7)`
+
   try {
     const [funnel, weekly, sessions, mix, ret, totals, ttfc, ns] = await Promise.all([
       hogql(projectId, key, `
@@ -52,34 +62,38 @@ export default async function handler(req, res) {
           uniqIf(person_id, event='card_saved'),
           uniqIf(person_id, event='signup_gate_shown'),
           uniqIf(person_id, event in ('signin_completed','signup_completed'))
-        from events`),
+        from events where ${IN_WINDOW}`),
       hogql(projectId, key, `
-        select toStartOfWeek(timestamp) as w,
+        select ${WEEK_AGO} as ago,
           uniqIf(person_id, event='app_opened'),
           countIf(event='card_saved'),
           countIf(event='card_viewed')
-        from events group by w order by w`),
+        from events where ${IN_WINDOW} group by ago order by ago`),
       hogql(projectId, key, `
-        select toStartOfWeek(timestamp) as w,
+        select ${WEEK_AGO} as ago,
           median(if(toFloat(properties.duration_s)>=30, toFloat(properties.duration_s), null))
-        from events where event='session_ended' group by w order by w`),
+        from events where event='session_ended' and ${IN_WINDOW} group by ago order by ago`),
       hogql(projectId, key, `
         select countIf(properties.action='interested'), countIf(properties.action='pass')
-        from events where event='card_swiped'`),
+        from events where event='card_swiped' and ${IN_WINDOW}`),
       hogql(projectId, key, `
         select countIf(days>=2), count() from
-          (select person_id, uniq(toDate(timestamp)) as days from events group by person_id)`),
+          (select person_id, uniq(toDate(timestamp)) as days from events
+           where ${IN_WINDOW} group by person_id)`),
       hogql(projectId, key, `
-        select uniq(person_id), count(), min(toDate(timestamp)), max(toDate(timestamp)) from events`),
+        select uniq(person_id), count(), min(toDate(timestamp)), max(toDate(timestamp))
+        from events where ${IN_WINDOW}`),
       hogql(projectId, key, `
         select median(dateDiff('second', s, v)) from
-          (select person_id, min(timestamp) as s from events where event='onboarding_started' group by person_id) a
-          join (select person_id, min(timestamp) as v from events where event='card_viewed' group by person_id) b
+          (select person_id, min(timestamp) as s from events
+           where event='onboarding_started' and ${IN_WINDOW} group by person_id) a
+          join (select person_id, min(timestamp) as v from events
+           where event='card_viewed' and ${IN_WINDOW} group by person_id) b
           on a.person_id=b.person_id where v>=s`),
       hogql(projectId, key, `
         select uniqIf(person_id, event='card_saved'),
                uniqIf(person_id, event in ('review_completed','kept_card_opened'))
-        from events`),
+        from events where ${IN_WINDOW}`),
     ])
 
     const [started, toggled, completed, viewed, swiped, saved, gateShown, signedIn] = funnel[0]
@@ -88,6 +102,23 @@ export default async function handler(req, res) {
     const [uniqPeople, events, from, to] = totals[0]
     const [savers, returnedToCard] = ns[0]
 
+    // Rebuild the rolling weeks chronologically (oldest → the week ending
+    // today), joining sessions by their `ago` key — positional joins break
+    // the moment one bucket has no session_ended rows.
+    const byAgo = new Map(weekly.map(([ago, wau, saves, views]) => [ago, { wau, saves, views }]))
+    const sessByAgo = new Map(sessions.map(([ago, med]) => [ago, med]))
+    const dayMs = 86_400_000
+    const isoDaysAgo = (n) => new Date(Date.now() - n * dayMs).toISOString().slice(0, 10)
+    const weeks = [2, 1, 0].map((ago) => ({
+      // week runs (today − ago·7 − 6) … (today − ago·7); today closes week 3
+      week: isoDaysAgo(ago * 7 + 6),
+      weekEnd: isoDaysAgo(ago * 7),
+      wau: byAgo.get(ago)?.wau ?? 0,
+      saves: byAgo.get(ago)?.saves ?? 0,
+      views: byAgo.get(ago)?.views ?? 0,
+      medianSessionS: sessByAgo.get(ago) ?? null,
+    }))
+
     const body = {
       updatedAt: new Date().toISOString(),
       window: { from, to },
@@ -95,13 +126,7 @@ export default async function handler(req, res) {
       funnel: {
         started, toggled, completed, viewed, swiped, saved, gateShown, signedIn,
       },
-      weekly: weekly.map(([w, wau, saves, views], i) => ({
-        week: w,
-        wau,
-        saves,
-        views,
-        medianSessionS: sessions[i]?.[1] ?? null,
-      })),
+      weekly: weeks,
       swipeMix: { interested, pass },
       secondDay: { returned, people },
       ns: { savers, returnedToCard },

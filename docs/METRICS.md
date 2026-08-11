@@ -108,6 +108,15 @@ to them. The first real pull is below.
 
 ---
 
+**Measurement window (revised 2026-08-11):** the live dashboard counts a
+**rolling three-week window ending today** — today is always the last day
+of the newest week (weeks are today−6…today, today−13…today−7,
+today−20…today−14), and events older than 21 days drop out of every
+number on the page: funnel, totals, swipe mix, North Star, all of it.
+Weeks are therefore ranges anchored to the viewing date, not calendar
+weeks. Rationale: the dashboard should always answer "how are the last
+three weeks going," not accumulate history that flatters totals.
+
 ## 3b. The numbers as of 1 August (live PostHog pull)
 
 Pulled directly from the event store, unique people unless stated. Cohort is
