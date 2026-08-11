@@ -117,6 +117,13 @@ Weeks are therefore ranges anchored to the viewing date, not calendar
 weeks. Rationale: the dashboard should always answer "how are the last
 three weeks going," not accumulate history that flatters totals.
 
+The PostHog dashboard (1972439) is pinned to the same window via a
+dashboard-level `-21d` date filter across all nine tiles. One honest
+caveat: PostHog's week-interval charts still break on calendar weeks —
+it cannot draw "weeks ending today" — so the live page is the canonical
+view of the rolling weeks; PostHog is the drill-down over the same 21
+days.
+
 ## 3b. The numbers as of 1 August (live PostHog pull)
 
 Pulled directly from the event store, unique people unless stated. Cohort is
