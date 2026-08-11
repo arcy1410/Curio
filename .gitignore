@@ -36,3 +36,4 @@ pnpm-debug.log*
 
 # Local build artifacts
 *.local
+~$*
