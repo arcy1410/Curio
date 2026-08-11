@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.curio.twa",
+      "sha256_cert_fingerprints": [
+        "24:A9:46:26:3C:70:09:CF:58:3E:D7:CF:4C:B0:9C:91:4A:FE:73:81:0E:17:CA:3E:6A:B5:F5:AC:6D:D5:33:A1"
+      ]
+    }
+  }
+]

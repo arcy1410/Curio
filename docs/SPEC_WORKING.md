@@ -37,6 +37,13 @@ Prioritization). Build proceeds in §9's WSJF order.
   threw before advancing the deck (a stray call to state that never
   existed), leaving the kept card on top — AC2's first bullet was shipped
   broken. Field-reported; fixed and verified.
+- **Distribution (2026-08-11):** Curio is now a PWA (manifest + service
+  worker, shell-only precache — Supabase/PostHog/api stay NetworkOnly so
+  freshness and auth are never served stale) and ships as a signed Android
+  APK (`/curio.apk`, a Trusted Web Activity wrapping the production URL —
+  content still deploys through Vercel with no rebuild). Digital Asset
+  Links at `/.well-known/assetlinks.json` gives the APK full-screen once
+  deployed. Signing keystore lives outside the repo.
 
 ---
 
